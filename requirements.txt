@@ -1,0 +1,2 @@
+sentence-transformers==3.4.1
+# LUMI module pytorch/2.4
