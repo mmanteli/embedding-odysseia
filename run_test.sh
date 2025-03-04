@@ -6,10 +6,10 @@
 ##SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=20G
-#SBATCH -t 00:05:00
+#SBATCH -t 00:15:00
 #SBATCH -N 1
 #SBATCH -J test_sentence_transformers
-#SBATCH -o logs/%x.out
+#SBATCH -o logs/%x-%j.out
 
 module purge
 module use /appl/local/csc/modulefiles/

@@ -1,5 +1,6 @@
 from sentence_transformers import SentenceTransformer
 import seaborn as sns
+import torch
 
 # this is modified from https://huggingface.co/intfloat/multilingual-e5-large-instruct examples
 
@@ -40,7 +41,7 @@ def get_queries_and_documents(task_name:str) -> list:
         ]
         return queries, documents
 
-    if task_name in ["BitextMining"]:
+    if task_name in ["BitextMining", "STS"]:
         # these are from hplt v2 parallel corpus 
         queries = []
         with open("bitextdata/bitextmining_examples_en.txt", "r") as f:
@@ -52,17 +53,31 @@ def get_queries_and_documents(task_name:str) -> list:
     
     raise ValueError(f"No query and document config for task {task_name}")
 
+
+
 task_name = "BitextMining"
+model_name = "e5"
+
+
 queries, documents = get_queries_and_documents(task_name)
 input_texts = queries + documents
 
-model = SentenceTransformer('intfloat/multilingual-e5-large-instruct')
+model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
+                   "qwen" : "Alibaba-NLP/gte-Qwen2-7B-instruct",
+                   "jina" : "jinaai/jina-embeddings-v3"
+}
+model = SentenceTransformer(model_name_dict[model_name],trust_remote_code=True)
+#model = SentenceTransformer("Alibaba-NLP/gte-Qwen2-7B-instruct", trust_remote_code=True)
+# In case you want to reduce the maximum length:
+if model_name == "qwen":
+    model.max_seq_length = 8192
 
 embeddings = model.encode(input_texts, convert_to_tensor=True, normalize_embeddings=True)
+#torch.save(embeddings, f'{model_name}_{task_name}.pt')
 print(f'embedding size {embeddings.size()}')
 num_queries = len(queries)
 scores = (embeddings[:num_queries] @ embeddings[num_queries:].T) * 100
 fig = sns.heatmap(scores,annot=True, fmt=".1f")
 figure = fig.get_figure()    
-figure.savefig('heatmap.png')
+figure.savefig(f'{model_name}_heatmap_{task_name}.png')
 print(scores.tolist())
