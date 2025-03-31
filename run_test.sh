@@ -17,4 +17,4 @@ module load pytorch/2.4
 export PYTHONPATH=/scratch/project_462000615/mynttiam/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 
 export HF_HOME=/scratch/project_462000615/hf_cache
-srun python test_sentence_transformers.py
+srun python extract_embeddings.py --data="/scratch/project_462000353/HPLT-REGISTERS/samples-150B-by-register-xlmrl/original_corrected/IN-splitted/eng_Latn_IN_121_01.jsonl" --model="e5" --save_path="testi.jsonl"
