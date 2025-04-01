@@ -2,3 +2,5 @@ logs
 pythonuserbase
 *.pt
 bitextdata
+*test*.jsonl
+*test*.pkl
