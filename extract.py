@@ -1,12 +1,11 @@
 import torch
 from jsonargparse import ArgumentParser
-import transformers
+from  transformers import AutoTokenizer
 import sys
 import time
 import json
 import traceback
 import pickle
-#from transformers.pipelines.pt_utils import KeyDataset
 import datetime
 import datasets
 import os
@@ -51,7 +50,7 @@ def get_query(task_name:str, text:str) -> list:
 
 #--------------------------------- Chuncking of long documents --------------------------------- #
 
-def text2dataset(line,chunk_size=5000):
+def text2dataset(line, chunk_size):
     """
     turn a text into a dataset of text chunks
     """
@@ -65,7 +64,7 @@ def text2dataset(line,chunk_size=5000):
         offsets.append(chunk_offset)
     return datasets.Dataset.from_dict({"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets})
 
-def text2chunks(line,chunk_size=5000):
+def text2chunks(line, chunk_size):
     """
     turn a text into chunked segments
     """
@@ -77,6 +76,35 @@ def text2chunks(line,chunk_size=5000):
         offsets.append(chunk_offset)
     #return {"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets}
     return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
+
+def text2tokenchunks(line, tokenizer, max_length, overlap):
+    """
+    turn a text into chunked segments ert token count
+    Overlap defaults to model_max_length/2 -1
+    """
+    txt = line["text"]
+    tokenized = tokenizer(txt, return_overflowing_tokens=True)
+
+    input_ids = tokenized["input_ids"][0]  # remove nesting
+    #print(input_ids)
+
+    # make indices that travel accross input ids with given overlap
+    indices_upper_limits = [i-1+overlap for i in range(overlap, len(input_ids)+overlap, overlap)]
+    indices_lower_limits = [i for i in range(0, len(input_ids), overlap)]
+
+    # go over the indices and collect results.
+    chunks=[]
+    offsets=[]
+    current_offset = 0
+    for start, end in zip(indices_lower_limits, indices_upper_limits):
+        chunked_tokens = input_ids[start:end]
+        chunked_text = tokenizer.decode(chunked_tokens, skip_special_tokens = True, clean_up_tokenisation_spaces=True)
+        chunks.append(chunked_text)
+        offsets.append(current_offset)
+        current_offset += len(chunked_text)
+    return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
+
+
 
 #-------------------------------------- Old tested options -------------------------------------- #
 
@@ -152,6 +180,8 @@ def transform(f, options):
     model = SentenceTransformer(model_name_dict.get(options.model, options.model),trust_remote_code=True)
     if options.model in ["qwen","Alibaba-NLP/gte-Qwen2-7B-instruct"]:
         model.max_seq_length = 8192
+    if options.split_by == "tokens":
+        tokenizer = AutoTokenizer.from_pretrained(model_name_dict.get(options.model, options.model))
 
     texts = []
     ids = []
@@ -161,8 +191,17 @@ def transform(f, options):
         if options.debug: print(f"In document {idx}", flush=True)
         try: 
             j = json.loads(line)
-            if options.chunk_size:
-                chunk, id_, label, offset  = text2chunks(j, options.chunk_size)
+            if options.split_by == "chars":
+                assert options.character_chunk_size, "Give --character_chunk_size with --split_by=chars"
+                chunk, id_, label, offset  = text2chunks(j, options.character_chunk_size)
+                texts.extend(chunk)
+                ids.extend(id_)
+                labels.extend(label)
+                offsets.extend(offset)
+            elif options.split_by == "tokens":
+                max_length = options.tokenizer_chunk_size if options.tokenizer_chunk_size else tokenizer.tokenizer_chunk_size
+                overlap = options.overlap if options.overlap else int(max_length/2)-1 
+                chunk, id_, label, offset  = text2tokenchunks(j, tokenizer, max_length, overlap)
                 texts.extend(chunk)
                 ids.extend(id_)
                 labels.extend(label)
@@ -199,12 +238,14 @@ def transform(f, options):
 
 
 parser = ArgumentParser(prog="extract.py")
-#parser.add_argument('--data',type=str,help="Path to dataset")
 parser.add_argument('--model',type=str,help="Model name")
 parser.add_argument('--save', type=str,help="Path for saving results", default=None)
 parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
-parser.add_argument('--chunk_size', '--chunksize',type=int,help="elements per batch", default = None)
 parser.add_argument('--batch_size', '--batchsize', type=int,help="How many files are handled the same time", default = 4)
+parser.add_argument('--split_by', default="truncate", choices=["tokens", "chars", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
+parser.add_argument('--character_chunk_size', '--max_chars',type=int,help="Characters per batch", default = None)
+parser.add_argument('--tokenizer_chunk_size', '--max_tokens', type=int, help="How many tokens per batch (None = model max len)", default = None)
+parser.add_argument('--overlap', '--context_overlap', type=int, help="How much overlap per segment (None = model_max_len/2)", default = None)
 parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
 
 options = parser.parse_args()

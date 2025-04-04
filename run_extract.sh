@@ -17,4 +17,4 @@ module load pytorch/2.4
 export PYTHONPATH=/scratch/project_462000883/amanda/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 
 export HF_HOME=/scratch/project_462000883/hf_cache
-srun python extract.py --model="e5" --batchsize=5 < /scratch/project_462000883/amanda/embedding-extraction/test-data/IN-testset-large.jsonl
+srun python extract.py --model="e5" --debug=True --batchsize=5 --split_by=truncate < /scratch/project_462000883/amanda/embedding-extraction/test-data/IN-testset-large.jsonl
