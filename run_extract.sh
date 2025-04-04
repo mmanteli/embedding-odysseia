@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -A project_462000615
+#SBATCH -A project_462000883
 #SBATCH -p dev-g
 #SBATCH --ntasks-per-node=1
 ##SBATCH --gpus-per-node=1
