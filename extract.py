@@ -194,10 +194,10 @@ def transform(f, options):
         pickle_dump_wrt_id(f, ids, offsets, labels, texts, embedded_texts)
         
 
+#-------------------------------------------- Start -------------------------------------------- # 
 
 
-            
-parser = ArgumentParser(prog="extract_embeddings.py")
+parser = ArgumentParser(prog="extract.py")
 #parser.add_argument('--data',type=str,help="Path to dataset")
 parser.add_argument('--model',type=str,help="Model name")
 parser.add_argument('--save', type=str,help="Path for saving results", default=None)
