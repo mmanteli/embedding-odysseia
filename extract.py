@@ -19,6 +19,9 @@ disable_progress_bar()
 from datasets.utils.logging import set_verbosity_error
 set_verbosity_error()                                        #prevent the libraries' messages from being displayed
 
+# Help
+# https://sbert.net/examples/sentence_transformer/applications/computing-embeddings/README.html
+
 
 #------------------------------- Define aliases for models here ------------------------------- #
 model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
@@ -28,16 +31,24 @@ model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
 
 #-------------------------------- Define possible prompts here -------------------------------- #
 
+
+# these are from https://github.com/microsoft/unilm/blob/9c0f1ff7ca53431fe47d2637dfe253643d94185b/e5/utils.py#L106
+# and https://huggingface.co/Alibaba-NLP/gte-Qwen2-7B-instruct/blob/main/scripts/eval_mteb.py
+# and are used for MTEB
+# One difference is that e5 uses colons!!!!!!!!!!!!!
 def get_task_def_by_task_name_and_type(task_type: str) -> str:
     if task_type in ['STS']:
         return "Retrieve semantically similar text."
     if task_type in ['Summarization']:
-        return "Given a summary, retrieve other semantically similar summaries"
+        return "Given a news summary, retrieve other semantically similar summaries"
     if task_type in ['BitextMining']:
-        return "Retrieve parallel sentences."    # this needs to be adjusted fron qwen
+        return "Retrieve parallel sentences."
     if task_type in ['Retrieval']:
         return "Given a web search query, retrieve relevant passages that answer the query"
     raise ValueError(f"No instruction config for task {task_type}")
+
+def get_all_prompts():
+    return {task: get_task_def_by_task_name_and_type(task) for task in ['STS', 'Summarization', 'BitextMining','Retrieval']}
 
 def get_detailed_instruct(task_description: str, query: str) -> str:
     return f'Instruct: {task_description}\nQuery: {query}'
@@ -57,9 +68,7 @@ def text2dataset(line, chunk_size):
     txt = line["text"]
     chunks=[]
     offsets=[]
-    print(line)
     for chunk_offset in range(0,len(txt),chunk_size):
-        #print(f'[{chunk_offset}:{chunk_offset+chunk_size}]')
         chunks.append(txt[chunk_offset:chunk_offset+chunk_size])
         offsets.append(chunk_offset)
     return datasets.Dataset.from_dict({"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets})
@@ -86,7 +95,6 @@ def text2tokenchunks(line, tokenizer, max_length, overlap):
     tokenized = tokenizer(txt, return_overflowing_tokens=True)
 
     input_ids = tokenized["input_ids"][0]  # remove nesting
-    #print(input_ids)
 
     # make indices that travel accross input ids with given overlap
     indices_upper_limits = [i-1+overlap for i in range(overlap, len(input_ids)+overlap, overlap)]
@@ -161,8 +169,10 @@ def pickle_dump_wrt_id(f, ids, offsets, labels, texts, embeddings):
 
 #------------------------------------ Embedding calculation ------------------------------------ #
 
-def embed(model, texts, options):
-    input_texts = [get_query(options.task, t) for t in texts]
+def embed(model, input_texts, options):
+    #input_texts = [get_query(options.task, t) for t in texts]
+    #embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)
+    #input_texts = texts
     embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)
     return embedded_texts
 
@@ -177,7 +187,12 @@ def transform(f, options):
     """
 
     # find model with alias or full name
-    model = SentenceTransformer(model_name_dict.get(options.model, options.model),trust_remote_code=True)
+    model = SentenceTransformer(
+                                model_name_dict.get(options.model, options.model),
+                                prompts=get_all_prompts(), 
+                                default_prompt_name=options.task,
+                                trust_remote_code=True
+                                )
     if options.model in ["qwen","Alibaba-NLP/gte-Qwen2-7B-instruct"]:
         model.max_seq_length = 8192
     if options.split_by == "tokens":
@@ -199,7 +214,7 @@ def transform(f, options):
                 labels.extend(label)
                 offsets.extend(offset)
             elif options.split_by == "tokens":
-                max_length = options.tokenizer_chunk_size if options.tokenizer_chunk_size else tokenizer.tokenizer_chunk_size
+                max_length = options.tokenizer_chunk_size if options.tokenizer_chunk_size else tokenizer.model_max_length
                 overlap = options.overlap if options.overlap else int(max_length/2)-1 
                 chunk, id_, label, offset  = text2tokenchunks(j, tokenizer, max_length, overlap)
                 texts.extend(chunk)
@@ -213,12 +228,12 @@ def transform(f, options):
                 labels.append(j["register"])
                 offsets.append(j["offset"])
         except:
-            print(f'Problem with text on idx {idx}')
+            print(f'Problem with text on idx {idx}', flush=True)
             traceback.print_exc()
-            print("")
+            print("", flush=True)
 
         if len(texts) >= options.batch_size:
-            if options.debug: print(f"Doing a batch at index {idx}")
+            if options.debug: print(f"Doing a batch at index {idx}", flush=True)
             embedded_texts = embed(model, texts, options)
             pickle_dump_wrt_id(f, ids, offsets, labels, texts, embedded_texts)
             
@@ -229,7 +244,7 @@ def transform(f, options):
             offsets = []
 
     if len(ids) > 0:   # we have leftovers; e.g. last chunk was not over batch size
-        if options.debug: print("Dumping leftovers")
+        if options.debug: print("Dumping leftovers", flush=True)
         embedded_texts = embed(model, texts, options)
         pickle_dump_wrt_id(f, ids, offsets, labels, texts, embedded_texts)
         
@@ -249,7 +264,7 @@ parser.add_argument('--overlap', '--context_overlap', type=int, help="How much o
 parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
 
 options = parser.parse_args()
-print(options)
+print(options, flush=True)
 
 save_file = "testi.pkl" if options.save is None else options.save
 assert ".pkl" in save_file, "Include a valid path with .pkl in the end"
