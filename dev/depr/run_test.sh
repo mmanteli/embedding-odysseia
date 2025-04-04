@@ -8,7 +8,7 @@
 #SBATCH --mem=20G
 #SBATCH -t 00:15:00
 #SBATCH -N 1
-#SBATCH -J test_extract
+#SBATCH -J test_sentence_transformers
 #SBATCH -o logs/%x-%j.out
 
 module purge
@@ -17,4 +17,7 @@ module load pytorch/2.4
 export PYTHONPATH=/scratch/project_462000615/mynttiam/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 
 export HF_HOME=/scratch/project_462000615/hf_cache
-srun python extract.py --model="e5" --chunksize=200 --batchsize=4 --debug=True < /scratch/project_462000615/mynttiam/embedding-extraction/IN-testset-large.jsonl
+srun python extract_embeddings.py \
+        --data="/scratch/project_462000353/HPLT-REGISTERS/samples-150B-by-register-xlmrl/original_corrected/IN-splitted/eng_Latn_IN_121_01.jsonl" \
+        --model="e5" \
+        --save_path="testi_with_tokenization.jsonl"

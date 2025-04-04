@@ -4,6 +4,7 @@ import torch
 import json
 import pandas as pd
 import sys 
+from transformers import AutoTokenizer
 
 # Define possible models here
 model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
@@ -55,13 +56,22 @@ def extract(options):
         model.max_seq_length = 8192
 
     embeddings = []
-    for index, row in df.iterrows():
-        query = get_query(options.task, row["text"])
-        input_texts = query + [] # documents
-        embeddings.append(model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)[0])
-
-    print(len(embeddings))
-    print(len(embeddings[0]))
+    if False:
+        for index, row in df.iterrows():
+            query = get_query(options.task, row["text"])
+            input_texts = query + [] # documents
+            embeddings.append(model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)[0])
+    else:
+        for index, row in df.iterrows():
+            query = get_query(options.task, row["text"])
+            input_texts = query + [] # documents
+            tokenizer = AutoTokenizer.from_pretrained(model_name_dict[options.model])
+            tok = tokenizer(input_texts)
+            print(tok)
+            emb = model.forward(input=tok, convert_to_tensor=False, normalize_embeddings=False)
+            embeddings.append(emb[0])
+    #print(len(embeddings))
+    #print(len(embeddings[0]))
     #print(len(embeddings[0][0]))
     df["embeddings"] = embeddings
 
