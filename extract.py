@@ -168,6 +168,7 @@ def transform(f, options):
                 labels.extend(label)
                 offsets.extend(offset)
             else:
+                j["offset"] = None
                 texts.append(j["text"])
                 ids.append(j["id"])
                 labels.append(j["register"])

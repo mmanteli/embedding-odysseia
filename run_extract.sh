@@ -14,7 +14,7 @@
 module purge
 module use /appl/local/csc/modulefiles/
 module load pytorch/2.4
-export PYTHONPATH=/scratch/project_462000615/mynttiam/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
+export PYTHONPATH=/scratch/project_462000883/amanda/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 
-export HF_HOME=/scratch/project_462000615/hf_cache
-srun python extract.py --model="e5" --chunksize=200 --batchsize=4 --debug=True < /scratch/project_462000615/mynttiam/embedding-extraction/IN-testset-large.jsonl
+export HF_HOME=/scratch/project_462000883/hf_cache
+srun python extract.py --model="e5" --batchsize=5 < /scratch/project_462000883/amanda/embedding-extraction/test-data/IN-testset-large.jsonl
