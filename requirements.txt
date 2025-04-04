@@ -1,2 +1,4 @@
+python>=3.10
 sentence-transformers==3.4.1
+jsonargparse==4.37.0
 # LUMI module pytorch/2.4
