@@ -113,6 +113,39 @@ def text2chunks(line, chunk_size, overlap):
         current_offset += len(chunked_text)
     return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
 
+def text2wordchunks(line, max_length, overlap):
+    """
+    turn a text into chunked segments wrt whitespace, with defined overlap
+    """
+    txt = line["text"]
+
+    input_ids = txt.split(" ")
+
+    if overlap:
+        # initialize
+        indices_upper_limits=[max_length]
+        indices_lower_limits=[0]
+        k = 1 # multiplyer
+        # this could be made with for loop, if we knew the max value of k => possible to calculate but I do not trust myself like that
+        while indices_upper_limits[-1] < len(input_ids):   
+            indices_upper_limits.append((k+1)*max_length - k*overlap)
+            indices_lower_limits.append(indices_upper_limits[-1]-max_length)
+            k+=1
+    else:   # either overlap=0 or None
+        indices_upper_limits = [i for i in range(max_length, len(input_ids)+max_length, max_length)]
+        indices_lower_limits = [i for i in range(0, len(input_ids), max_length)]
+
+    # go over the indices and collect results.
+    chunks=[]
+    offsets=[]
+    current_offset = 0
+    for start, end in zip(indices_lower_limits, indices_upper_limits):
+        chunked_tokens = input_ids[start:end]
+        chunked_text = " ".join(chunked_tokens)
+        chunks.append(chunked_text)
+        offsets.append(current_offset)
+        current_offset += len(chunked_text)
+    return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
    
 
 def text2tokenchunks(line, tokenizer, max_length, overlap):
@@ -259,6 +292,13 @@ def transform(f, options):
                 ids.extend(id_)
                 labels.extend(label)
                 offsets.extend(offset)
+            elif options.split_by == "words":
+                assert options.word_chunk_size, "Give --word_chunk_size with --split_by=words"
+                chunk, id_, label, offset  = text2wordchunks(j, options.word_chunk_size, options.overlap)
+                texts.extend(chunk)
+                ids.extend(id_)
+                labels.extend(label)
+                offsets.extend(offset)
             else:
                 j["offset"] = None
                 texts.append(j["text"])
@@ -295,9 +335,10 @@ parser.add_argument('--model',type=str,help="Model name")
 parser.add_argument('--save', type=str,help="Path for saving results", default=None)
 parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
 parser.add_argument('--batch_size', '--batchsize', type=int,help="How many files are handled the same time", default = 4)
-parser.add_argument('--split_by', default="truncate", choices=["tokens", "chars", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
+parser.add_argument('--split_by', default="truncate", choices=["tokens", "chars", "words", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
 parser.add_argument('--character_chunk_size', '--max_chars',type=int,help="Characters per batch", default = None)
 parser.add_argument('--tokenizer_chunk_size', '--max_tokens', type=int, help="How many tokens per batch (None = model max len)", default = None)
+parser.add_argument('--word_chunk_size', '--max_words', type=int, help="How many words per batch", default = None)
 parser.add_argument('--overlap', '--context_overlap', type=int, help="How much overlap per segment (None = model_max_len/2)", default = None)
 parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
 
