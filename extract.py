@@ -252,7 +252,7 @@ def transform(f, options):
                 labels.extend(label)
                 offsets.extend(offset)
             elif options.split_by == "tokens":
-                max_length = options.tokenizer_chunk_size if options.tokenizer_chunk_size else tokenizer.model_max_length
+                max_length = options.tokenizer_chunk_size if options.tokenizer_chunk_size else tokenizer.model_max_length - 2 # room for special tokens
                 overlap = options.overlap if options.overlap else int(max_length/2)-1 
                 chunk, id_, label, offset  = text2tokenchunks(j, tokenizer, max_length, overlap)
                 texts.extend(chunk)
