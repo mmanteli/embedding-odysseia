@@ -73,7 +73,7 @@ def text2dataset(line, chunk_size):
         offsets.append(chunk_offset)
     return datasets.Dataset.from_dict({"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets})
 
-def text2chunks(line, chunk_size):
+def text2chunks_old(line, chunk_size):
     """
     turn a text into chunked segments
     """
@@ -86,19 +86,57 @@ def text2chunks(line, chunk_size):
     #return {"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets}
     return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
 
+def text2chunks(line, chunk_size, overlap):
+    txt = line["text"]
+    max_length=chunk_size
+    if overlap:
+        # initialize
+        indices_upper_limits=[max_length]
+        indices_lower_limits=[0]
+        k = 1 # multiplyer
+        # this could be made with for loop, if we knew the max value of k => possible to calculate but I do not trust myself like that
+        while indices_upper_limits[-1] < len(txt):   
+            indices_upper_limits.append((k+1)*max_length - k*overlap)
+            indices_lower_limits.append(indices_upper_limits[-1]-max_length)
+            k+=1
+    else:   # either overlap=0 or None
+        indices_upper_limits = [i for i in range(max_length, len(txt)+max_length, max_length)]
+        indices_lower_limits = [i for i in range(0, len(txt), max_length)]
+
+    chunks=[]
+    offsets=[]
+    current_offset = 0
+    for start, end in zip(indices_lower_limits, indices_upper_limits):
+        chunked_text = txt[start:end]
+        chunks.append(chunked_text)
+        offsets.append(current_offset)
+        current_offset += len(chunked_text)
+    return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
+
+   
+
 def text2tokenchunks(line, tokenizer, max_length, overlap):
     """
-    turn a text into chunked segments ert token count
-    Overlap defaults to model_max_length/2 -1
+    turn a text into chunked segments wrt token count, with defined overlap
     """
     txt = line["text"]
     tokenized = tokenizer(txt, return_overflowing_tokens=True)
 
     input_ids = tokenized["input_ids"][0]  # remove nesting
 
-    # make indices that travel accross input ids with given overlap
-    indices_upper_limits = [i-1+overlap for i in range(overlap, len(input_ids)+overlap, overlap)]
-    indices_lower_limits = [i for i in range(0, len(input_ids), overlap)]
+    if overlap:
+        # initialize
+        indices_upper_limits=[max_length]
+        indices_lower_limits=[0]
+        k = 1 # multiplyer
+        # this could be made with for loop, if we knew the max value of k => possible to calculate but I do not trust myself like that
+        while indices_upper_limits[-1] < len(input_ids):   
+            indices_upper_limits.append((k+1)*max_length - k*overlap)
+            indices_lower_limits.append(indices_upper_limits[-1]-max_length)
+            k+=1
+    else:   # either overlap=0 or None
+        indices_upper_limits = [i for i in range(max_length, len(input_ids)+max_length, max_length)]
+        indices_lower_limits = [i for i in range(0, len(input_ids), max_length)]
 
     # go over the indices and collect results.
     chunks=[]
@@ -208,7 +246,7 @@ def transform(f, options):
             j = json.loads(line)
             if options.split_by == "chars":
                 assert options.character_chunk_size, "Give --character_chunk_size with --split_by=chars"
-                chunk, id_, label, offset  = text2chunks(j, options.character_chunk_size)
+                chunk, id_, label, offset  = text2chunks(j, options.character_chunk_size, options.overlap)
                 texts.extend(chunk)
                 ids.extend(id_)
                 labels.extend(label)
