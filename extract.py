@@ -12,8 +12,8 @@ import os
 from sentence_transformers import SentenceTransformer
 import pandas as pd
 import nltk
-nltk.download('punkt')
-nltk.download('punkt_tab')
+#nltk.download('punkt')
+#nltk.download('punkt_tab')
 
 
 from datasets.utils.logging import disable_progress_bar      #prevent the libraries from displaying a progress bar
@@ -274,7 +274,7 @@ def embed(model, input_texts, options):
     #input_texts = [get_query(options.task, t) for t in texts]
     #embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)
     #input_texts = texts
-    embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)
+    embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False, batch_size=options.model_batch_size)
     return embedded_texts
 
 #------------------------------------------ Main loop ------------------------------------------ # 
@@ -372,7 +372,8 @@ parser = ArgumentParser(prog="extract.py")
 parser.add_argument('--model',type=str,help="Model name")
 parser.add_argument('--save', type=str,help="Path for saving results", default=None)
 parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
-parser.add_argument('--batch_size', '--batchsize', type=int,help="How many files are handled the same time", default = 4)
+parser.add_argument('--batch_size', '--batchsize', type=int,help="How many files are handled the same time", default = 500) 
+parser.add_argument('--model_batch_size', type=int, default=32)  # tested to be the fastest out of 32 64 128
 parser.add_argument('--split_by', default="sentences", choices=["tokens", "sentences", "chars", "words", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
 parser.add_argument('--character_chunk_size', '--max_chars',type=int,help="Characters per batch", default = None)
 parser.add_argument('--sentence_chunk_size',type=int,help="max character per sentence", default = 2500)
