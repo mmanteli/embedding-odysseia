@@ -11,6 +11,9 @@ import datasets
 import os
 from sentence_transformers import SentenceTransformer
 import pandas as pd
+import nltk
+nltk.download('punkt')
+nltk.download('punkt_tab')
 
 
 from datasets.utils.logging import disable_progress_bar      #prevent the libraries from displaying a progress bar
@@ -83,6 +86,33 @@ def text2chunks_old(line, chunk_size):
     for chunk_offset in range(0,len(txt),chunk_size):
         chunks.append(txt[chunk_offset:chunk_offset+chunk_size])
         offsets.append(chunk_offset)
+    #return {"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets}
+    return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
+
+def text2sentences(line, chunk_size):
+    """
+    turn a text into segments
+    """
+
+    def divide_sentences(text, chunk_size):
+        sentences = nltk.tokenize.sent_tokenize(text, language='english')
+        segmented = []
+        for s in sentences:
+            if len(s) < chunk_size:
+                segmented.append(s)
+            else:
+                for chunk_offset in range(0,len(s),chunk_size):
+                    segmented.append(s[chunk_offset:chunk_offset+chunk_size])
+        return segmented
+
+    txt = line["text"]
+    chunks=[]
+    offsets=[]
+    current_offset=0
+    for i, s in enumerate(divide_sentences(txt, chunk_size)):
+        chunks.append(s)
+        offsets.append(current_offset)
+        current_offset+=len(s)
     #return {"text":chunks, "id":[line["id"]]*len(chunks), "register": [line["register"]]*len(chunks), "offset": offsets}
     return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
 
@@ -262,7 +292,8 @@ def transform(f, options):
                                 model_name_dict.get(options.model, options.model),
                                 prompts=get_all_prompts(), 
                                 default_prompt_name=options.task,
-                                trust_remote_code=True
+                                trust_remote_code=True,
+                                device = "cuda:0" if torch.cuda.is_available() else "cpu",
                                 )
     if options.model in ["qwen","Alibaba-NLP/gte-Qwen2-7B-instruct"]:
         model.max_seq_length = 8192
@@ -277,7 +308,14 @@ def transform(f, options):
         if options.debug: print(f"In document {idx}", flush=True)
         try: 
             j = json.loads(line)
-            if options.split_by == "chars":
+            if options.split_by == "sentences":
+                assert options.sentence_chunk_size, "Give --sentence_chunk_size with --split_by=sentences"
+                chunk, id_, label, offset  = text2sentences(j, options.sentence_chunk_size)
+                texts.extend(chunk)
+                ids.extend(id_)
+                labels.extend(label)
+                offsets.extend(offset)
+            elif options.split_by == "chars":
                 assert options.character_chunk_size, "Give --character_chunk_size with --split_by=chars"
                 chunk, id_, label, offset  = text2chunks(j, options.character_chunk_size, options.overlap)
                 texts.extend(chunk)
@@ -335,8 +373,9 @@ parser.add_argument('--model',type=str,help="Model name")
 parser.add_argument('--save', type=str,help="Path for saving results", default=None)
 parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
 parser.add_argument('--batch_size', '--batchsize', type=int,help="How many files are handled the same time", default = 4)
-parser.add_argument('--split_by', default="truncate", choices=["tokens", "chars", "words", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
+parser.add_argument('--split_by', default="sentences", choices=["tokens", "sentences", "chars", "words", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
 parser.add_argument('--character_chunk_size', '--max_chars',type=int,help="Characters per batch", default = None)
+parser.add_argument('--sentence_chunk_size',type=int,help="max character per sentence", default = 2500)
 parser.add_argument('--tokenizer_chunk_size', '--max_tokens', type=int, help="How many tokens per batch (None = model max len)", default = None)
 parser.add_argument('--word_chunk_size', '--max_words', type=int, help="How many words per batch", default = None)
 parser.add_argument('--overlap', '--context_overlap', type=int, help="How much overlap per segment (None = model_max_len/2)", default = None)
