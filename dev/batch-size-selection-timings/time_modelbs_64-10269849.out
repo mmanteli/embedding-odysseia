@@ -1,0 +1,40 @@
+The following modules were not unloaded:
+  (Use "module --force purge" to unload all):
+
+  1) ModuleLabel/label   2) lumi-tools/24.05   3) init-lumi/0.2
+
+The following sticky modules could not be reloaded:
+
+  1) lumi-tools
+NOTE: This module uses Singularity. Some commands execute inside the container
+(e.g. python3, pip3).
+
+This module has been installed by CSC.
+
+Documentation: https://docs.csc.fi/apps/pytorch/
+Support: https://docs.csc.fi/support/contact/
+
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=64, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 64: 114
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=128, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 128: 102
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=200, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 200: 94
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=320, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 320: 90
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=520, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 520: 88
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=720, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 720: 83
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=920, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 920: 81
+Namespace(model='e5', save='testi.pkl', task='STS', batch_size=1200, model_batch_size=64, split_by='sentences', character_chunk_size=None, sentence_chunk_size=2500, tokenizer_chunk_size=None, word_chunk_size=None, overlap=None, debug=False)
+Default prompt name is set to 'STS'. This prompt will be applied to all `encode()` calls, except if `encode()` is called with `prompt` or `prompt_name` parameters.
+Model inside batch 64, data batch 1200: 79
