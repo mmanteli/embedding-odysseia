@@ -1,4 +1,6 @@
 python>=3.10
 sentence-transformers==3.4.1
 jsonargparse==4.37.0
+faiss-cpu==1.10.0
+sqlitedict==2.1.0
 # LUMI module pytorch/2.4

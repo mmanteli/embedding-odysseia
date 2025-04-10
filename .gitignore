@@ -6,3 +6,4 @@ bitextdata
 *test*.pkl
 test-data
 tests
+*.sqlite
