@@ -268,6 +268,17 @@ def pickle_dump_wrt_id(f, ids, offsets, labels, texts, embeddings):
     if data_to_dump:
         pickle.dump(data_to_dump, f)
 
+def pickle_dump_with_segmented_id(f, ids, offsets, labels, texts, embeddings):
+    """
+    pickle datasets with a segmented id: id = id + offset.
+    Calling pickle.load(f) returns one sentence, but others are easy to find
+    when moved the data to an sqlitedict later.
+    """
+    for i, o, r, t, e in zip(ids, offsets, labels, texts, embeddings): 
+        data_to_dump = {"id": str(i)+"-"+str(o), "offset": o, "register": r, "text": t, "embeddings": e}
+        pickle.dump(data_to_dump, f)
+
+
 #------------------------------------ Embedding calculation ------------------------------------ #
 
 def embed(model, input_texts, options):
@@ -351,7 +362,7 @@ def transform(f, options):
         if len(texts) >= options.batch_size:
             if options.debug: print(f"Doing a batch at index {idx}", flush=True)
             embedded_texts = embed(model, texts, options)
-            pickle_dump_wrt_id(f, ids, offsets, labels, texts, embedded_texts)
+            pickle_dump_with_segmented_id(f, ids, offsets, labels, texts, embedded_texts)
             
             # re-init
             texts = []
@@ -362,7 +373,7 @@ def transform(f, options):
     if len(ids) > 0:   # we have leftovers; e.g. last chunk was not over batch size
         if options.debug: print("Dumping leftovers", flush=True)
         embedded_texts = embed(model, texts, options)
-        pickle_dump_wrt_id(f, ids, offsets, labels, texts, embedded_texts)
+        pickle_dump_with_segmented_id(f, ids, offsets, labels, texts, embedded_texts)
         
 
 #-------------------------------------------- Start -------------------------------------------- # 
