@@ -1,4 +1,4 @@
-#from sqlitedict import SqliteDict
+from sqlitedict import SqliteDict
 import numpy as np
 import faiss
 import torch
@@ -27,12 +27,19 @@ def make_training_sample(options, fraction = 0.1):
     training_embeddings = None
     try:
         for beet in yield_from_pickle(options.data):
-            for b in beet:
+            if isinstance(beet, list):
+                for b in beet:
+                    if np.random.random() < fraction:
+                        if isinstance(training_embeddings, np.ndarray):
+                            training_embeddings = np.vstack((training_embeddings, b["embeddings"]))
+                        else:
+                            training_embeddings = b["embeddings"]
+            else:
                 if np.random.random() < fraction:
                     if isinstance(training_embeddings, np.ndarray):
-                        training_embeddings = np.vstack((training_embeddings, b["embeddings"]))
+                        training_embeddings = np.vstack((training_embeddings, beet["embeddings"]))
                     else:
-                        training_embeddings = b["embeddings"]
+                        training_embeddings = beet["embeddings"]
         torch.save(training_embeddings, options.training_data)
         return True
     except:
@@ -65,38 +72,41 @@ def train_faiss(options):
         return index
         
 
-def extract_embedding_and_id(data):
-    ids = []
-    embs = []
-    for d in data:
-        ids.append(int(d["id"],16))
-        embs.append(d["embeddings"])
-    #return embs, ids  #TODO
-    return embs, ids
-
 def index_w_fais(options, index=None):
+    db = SqliteDict(options.database)
     if index is None:
         if options.debug: print(f"Reading {options.trained_indexer}...", flush=True)
         index = faiss.read_index(options.trained_indexer)
     # collect batches
     emb_to_index = []
     id_to_index = []
-    i = 0
-    for beet in yield_from_pickle(options.data):
-        emb_, id_ = extract_embedding_and_id(beet)
-        emb_to_index.extend(emb_)
-        id_to_index.extend([i])
-        if i%1000 == 0:  # for every batch
-            E, I = np.vstack([np.array(e) for e in emb_to_index]), np.array(id_to_index)
+    for i, beet in enumerate(yield_from_pickle(options.data)):
+        if not isinstance(beet, dict):
+            print(beet)
+            print(f"error1 at {i}", flush=True)
+            continue
+        emb = beet["embeddings"]
+        if not isinstance(emb, np.ndarray):
+            print(type(emb))
+            print(f'error2 at {i}', flush=True)
+        emb_to_index.append(emb)
+        id_to_index.append(i)
+        db[i] = beet
+        if (i+1)%1000 == 0:  # for every batch
+            E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
             index.add_with_ids(E, I)
+            db.commit()
             # reinit
             emb_to_index = []
             id_to_index = []
     # tail values
-    index.add_with_ids(emb_to_index, id_to_index)
+    E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
+    index.add_with_ids(E, I)
+    db.commit()
+    if options.debug: print("Filling done, saving filled index", flush=True)
     index_filled = index
     faiss.write_index(index_filled, options.filled_indexer)
-    if options.debug: print(f'Filling done, {index_filled.ntotal} vectors in index.', flush=True)
+    if options.debug: print(f'{index_filled.ntotal} vectors in index.', flush=True)
     return True
 
 
@@ -123,10 +133,11 @@ def run(options):
 if __name__ == "__main__":
     parser = ArgumentParser(prog="faissify.py")
     parser.add_argument('--base_indexer',type=str,help="Indexer name, e.g. IVFPQ")
-    parser.add_argument('--trained_indexer',type=str,help="Path to save/load the indexer.")
+    parser.add_argument('--trained_indexer',type=str,help="Path to save/load the indexer .index.")
     parser.add_argument('--filled_indexer',type=str,help="Path to fill the indexer.")
     parser.add_argument('--data', type=str, help="Path to data")
-    parser.add_argument('--training_data', type=str, help="Path to load or save training data.")
+    parser.add_argument('--database', type=str, help="Where to save the indexed data in text format, .sqlite.")
+    parser.add_argument('--training_data', type=str, help="Path to load or save training data, .pt.")
     parser.add_argument('--embedding_dim', type=int,help="Embedding dimension", default=1024)
     parser.add_argument('--num_cells',type=int,help="Number of Voronoi cells in IVF", default = 1024)
     parser.add_argument('--num_quantizers', type=int, help="Number of quantizer in PQ", default = 64)
@@ -139,4 +150,5 @@ if __name__ == "__main__":
     assert ".pkl" in options.data or ".pickle" in options.data, "Give data in pickled json format."
     if options.training_data:
         assert ".pt" in options.training_data, "Training data does not have .pt extension."
+    assert ".sqlite" in options.database, "Give valid path to an sqlite database (.sqlite)"
     run(options)

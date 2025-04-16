@@ -19,6 +19,7 @@ export HF_HOME=/scratch/project_462000883/hf_cache
 srun python faissify.py --base_indexer="IVFPQ" \
                         --trained_indexer="/scratch/project_462000883/amanda/embedding-extraction/trained-indexers/first_test.index" \
                         --filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/first_test.index" \
-                        --data="/scratch/project_462000883/amanda/embedded-data/e5/dtp_test.pkl" \
+                        --data="/scratch/project_462000883/amanda/embedded-data/e5/mixed_registers_8000.pkl" \
                         --training_data="/scratch/project_462000883/amanda/embedding-extraction/training-data/first_test.pt" \
+                        --database="indexed-data/mixed_registers_8000.sqlite"
                         
