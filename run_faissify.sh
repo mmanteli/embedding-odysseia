@@ -16,10 +16,11 @@ module load pytorch/2.4
 export PYTHONPATH=/scratch/project_462000883/amanda/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 export HF_HOME=/scratch/project_462000883/hf_cache
 
+run_name="second_test"
 srun python faissify.py --base_indexer="IVFPQ" \
-                        --trained_indexer="/scratch/project_462000883/amanda/embedding-extraction/trained-indexers/first_test.index" \
-                        --filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/first_test.index" \
+                        --trained_indexer="/scratch/project_462000883/amanda/embedding-extraction/trained-indexers/${run_name}.index" \
+                        --filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/${run_name}.index" \
                         --data="/scratch/project_462000883/amanda/embedded-data/e5/mixed_registers_8000.pkl" \
-                        --training_data="/scratch/project_462000883/amanda/embedding-extraction/training-data/first_test.pt" \
-                        --database="indexed-data/mixed_registers_8000.sqlite"
+                        --training_data="/scratch/project_462000883/amanda/embedding-extraction/training-data/${run_name}.pt" \
+                        --database="indexed-data/mixed_registers_8000_${run_name}.sqlite"
                         

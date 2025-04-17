@@ -18,7 +18,7 @@ def yield_from_pickle(f_name):
             except EOFError:
                 break
 
-def make_training_sample(options, fraction = 0.1):
+def make_training_sample(options, fraction = 0.2):
     """
     Sample fraction (==0.1) of the data for training.
     Save the data to options.training_data, return True on success
