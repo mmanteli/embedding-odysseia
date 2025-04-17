@@ -9,16 +9,19 @@ import traceback
 from jsonargparse import ArgumentParser
 import pathlib
 
-def yield_from_pickle(f_name):
-    with open(f_name,"rb") as f:
-        while True:
-            try:
-                dicts=pickle.load(f)
-                yield dicts
-            except EOFError:
-                break
+def yield_from_pickle(f_names):
+    if isinstance(f_names, str):
+        f_names = [f_names]
+    for f_name in f_names:
+        with open(f_name,"rb") as f:
+            while True:
+                try:
+                    dicts=pickle.load(f)
+                    yield dicts
+                except EOFError:
+                    break   # this breaks while
 
-def make_training_sample(options, fraction = 0.2):
+def make_training_sample(options, fraction = 0.1):
     """
     Sample fraction (==0.1) of the data for training.
     Save the data to options.training_data, return True on success
@@ -147,7 +150,8 @@ if __name__ == "__main__":
     options = parser.parse_args()
     print(options, flush=True)
     # option checks
-    assert ".pkl" in options.data or ".pickle" in options.data, "Give data in pickled json format."
+    options.data = [d for d in options.data.split(",")]
+    assert ".pkl" in options.data[0] or ".pickle" in options.data[0], "Give data in pickled json format."
     if options.training_data:
         assert ".pt" in options.training_data, "Training data does not have .pt extension."
     assert ".sqlite" in options.database, "Give valid path to an sqlite database (.sqlite)"
