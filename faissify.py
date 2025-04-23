@@ -17,7 +17,11 @@ def yield_from_pickle(f_names):
             while True:
                 try:
                     dicts=pickle.load(f)
-                    yield dicts
+                    if type(dicts) == list:   # some older sets are saved this way
+                        for d in dicts:
+                            yield d
+                    else:
+                        yield dicts
                 except EOFError:
                     break   # this breaks while
 
@@ -27,22 +31,12 @@ def make_training_sample(options, fraction = 0.1):
     Save the data to options.training_data, return True on success
     """
     if options.debug: print(f'Making a training set with fraction {fraction}', flush=True)
-    training_embeddings = None
+    training_embeddings = []
     try:
         for beet in yield_from_pickle(options.data):
-            if isinstance(beet, list):
-                for b in beet:
-                    if np.random.random() < fraction:
-                        if isinstance(training_embeddings, np.ndarray):
-                            training_embeddings = np.vstack((training_embeddings, b["embeddings"]))
-                        else:
-                            training_embeddings = b["embeddings"]
-            else:
-                if np.random.random() < fraction:
-                    if isinstance(training_embeddings, np.ndarray):
-                        training_embeddings = np.vstack((training_embeddings, beet["embeddings"]))
-                    else:
-                        training_embeddings = beet["embeddings"]
+            if np.random.random() < fraction:
+                training_embeddings.append(beet)
+        training_embeddings = np.vstack([e for e in training_embeddings])
         torch.save(training_embeddings, options.training_data)
         return True
     except:
@@ -84,12 +78,8 @@ def index_w_fais(options, index=None):
     emb_to_index = []
     id_to_index = []
     for i, beet in enumerate(yield_from_pickle(options.data)):
-        if not isinstance(beet, dict):
-            print(beet)
-            print(f"error1 at {i}", flush=True)
-            continue
         emb = beet["embeddings"]
-        if not isinstance(emb, np.ndarray):
+        if type(emb) != np.ndarray:
             print(type(emb))
             print(f'error2 at {i}', flush=True)
         emb_to_index.append(emb)
