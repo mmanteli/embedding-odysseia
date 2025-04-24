@@ -10,6 +10,9 @@ from jsonargparse import ArgumentParser
 import pathlib
 
 def yield_from_pickle(f_names):
+    """
+    Generator to read from a list of pickled files (or one pickle file)
+    """
     if isinstance(f_names, str):
         f_names = [f_names]
     for f_name in f_names:
@@ -25,19 +28,19 @@ def yield_from_pickle(f_names):
                 except EOFError:
                     break   # this breaks while
 
-def make_training_sample(options, fraction = 0.1):
+def make_training_sample(data, training_data, debug=False, fraction = 0.1):
     """
     Sample fraction (==0.1) of the data for training.
-    Save the data to options.training_data, return True on success
+    Save the data to training_data, return True on success.
     """
-    if options.debug: print(f'Making a training set with fraction {fraction}', flush=True)
+    if debug: print(f'Making a training set from {data} with fraction {fraction}, saving to {training_data}', flush=True)
     training_embeddings = []
     try:
-        for beet in yield_from_pickle(options.data):
+        for beet in yield_from_pickle(data):
             if np.random.random() < fraction:
-                training_embeddings.append(beet)
+                training_embeddings.append(beet["embeddings"])
         training_embeddings = np.vstack([e for e in training_embeddings])
-        torch.save(training_embeddings, options.training_data)
+        torch.save(training_embeddings, training_data)
         return True
     except:
         traceback.print_exc()
@@ -107,7 +110,8 @@ def run(options):
     # check if the training data is already done
     if not pathlib.Path(options.training_data).is_file():
         if options.debug: print("Did not find training data, making it from options.data.")
-        data_exists = make_training_sample(options)
+        #data_exists = make_training_sample(options)   # removed the dependency of options here
+        data_exists = make_training_sample(options.data, options.training_data, debug=options.debug)
         if not data_exists:
             print("Could not construct training data, see error above.", flush=True)
             exit(1)

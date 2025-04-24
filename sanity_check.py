@@ -39,43 +39,41 @@ def embed(model, input_texts, options):
     embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False, batch_size=options.model_batch_size)
     return embedded_texts
 
+def get_NN(options):
+    model = SentenceTransformer(
+                                model_name_dict.get(options.model, options.model),
+                                prompts=get_all_prompts(), 
+                                default_prompt_name=options.task,
+                                trust_remote_code=True,
+                                device = "cuda:0" if torch.cuda.is_available() else "cpu",
+                                )
+    print("Model loaded")
+    query = "Excellent if you need a particular landmark name." #"It was such a great experience." #It definitely was great experience. <- in data
+    emb_query = embed(model, [query], options)
+    print("Query embedded")
+    index = faiss.read_index(options.filled_indexer)
+    print("index loaded")
+
+    D, I = index.search(emb_query, 4)
+    print(I[0])
+    db = SqliteDict(options.database)
+
+    for i in I[0]:
+        print(db[str(i)])
 
 
+if __name__ == "__main__":
+    parser = ArgumentParser(prog="extract.py")
+    parser.add_argument('--model',type=str,help="Model name")
+    parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
+    parser.add_argument('--model_batch_size', type=int, default=32)  # tested to be the fastest out of 32 64 128
+    parser.add_argument('--filled_indexer')
+    parser.add_argument('--database')
+    parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
 
-
-parser = ArgumentParser(prog="extract.py")
-parser.add_argument('--model',type=str,help="Model name")
-parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
-parser.add_argument('--model_batch_size', type=int, default=32)  # tested to be the fastest out of 32 64 128
-parser.add_argument('--filled_indexer')
-parser.add_argument('--database')
-parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
-
-options = parser.parse_args()
-print(options, flush=True)
-
-model = SentenceTransformer(
-                            model_name_dict.get(options.model, options.model),
-                            prompts=get_all_prompts(), 
-                            default_prompt_name=options.task,
-                            trust_remote_code=True,
-                            device = "cuda:0" if torch.cuda.is_available() else "cpu",
-                            )
-print("Model loaded")
-query = "It was such a great experience." #It definitely was great experience. <- in data
-emb_query = embed(model, [query], options)
-print("Query embedded")
-index = faiss.read_index(options.filled_indexer)
-print("index loaded")
-
-D, I = index.search(emb_query, 4)
-print(I[0])
-db = SqliteDict(options.database)
-
-for i in I[0]:
-    print(db[str(i)])
-
-
+    options = parser.parse_args()
+    print(options, flush=True)
+    get_NN(options)
 
 
 
