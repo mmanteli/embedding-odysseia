@@ -55,11 +55,17 @@ def train_faiss(options):
     quantizer = faiss.IndexFlatL2(options.embedding_dim)
     if options.base_indexer == "IVFPQ":
         index = faiss.IndexIVFPQ(quantizer, options.embedding_dim, options.num_cells, options.num_quantizers, options.quantizer_bits)
+    elif options.base_indexer == "HNSW":
+        M = options.graph_connections # connections
+        d = options.embedding_dim
+        index = faiss.IndexHNSWFlat(d,M)
+        index.hnsw.efConstruction = options.ef_construction
+        index.hnsw.efSearch = options.ef_search
     else:
         # using only FlatL2
         if options.debug: print("Using FlatL2 as the full indexer.", flush=True)
         index = quantizer
-    if not index.is_trained:
+    if not index.is_trained or options.base_indexer != "HNSW":
         training_vectors = torch.load(options.training_data)
         if options.debug: print(f'Training {options.base_indexer} on {len(training_vectors)} vectors.', flush=True)
         index.train(training_vectors)
@@ -90,14 +96,20 @@ def index_w_fais(options, index=None):
         db[i] = beet
         if (i+1)%1000 == 0:  # for every batch
             E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
-            index.add_with_ids(E, I)
+            if options.base_indexer == "HNSW":
+                index.add(E)  # Here we need to trust that they match
+            else:
+                index.add_with_ids(E, I)
             db.commit()
             # reinit
             emb_to_index = []
             id_to_index = []
     # tail values
     E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
-    index.add_with_ids(E, I)
+    if options.base_indexer == "HNSW":
+        index.add(E)  # Here we need to trust that they match
+    else:
+        index.add_with_ids(E, I)
     db.commit()
     if options.debug: print("Filling done, saving filled index", flush=True)
     index_filled = index
@@ -139,6 +151,9 @@ if __name__ == "__main__":
     parser.add_argument('--num_cells',type=int,help="Number of Voronoi cells in IVF", default = 1024)
     parser.add_argument('--num_quantizers', type=int, help="Number of quantizer in PQ", default = 64)
     parser.add_argument('--quantizer_bits', type=int, help="How many bits used to save quantizer values", default = 8)
+    parser.add_argument('--graph_connections', type=int, help="How many connections in HSNW", default = 64)
+    parser.add_argument('--ef_construction', type=int, help="How many layers for graph construction", default = 128)
+    parser.add_argument('--ef_search', type=int, help="How layers for graph searc", default = 128)  
     parser.add_argument('--debug', type=bool, default=True, help="Verbosity etc.")
 
     options = parser.parse_args()
