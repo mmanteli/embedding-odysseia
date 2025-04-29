@@ -41,55 +41,51 @@ def embed(model, input_texts, options):
 
 
 def calc_distance_cosine(target, neighbors):
-    #smallest_dist = -1
-    #closest_index = None
-    #for i, n in enumerate(neighbors):
-    #    d = np.dot(target, n)
-    #    if d > smallest_dist:   # Here larger, because large values indicate closeness
-    #        smallest_dist = d
-    #        closest_index=i  
+    """
+    Calculate the cosine distance between given embeddings and the given target.
+    Return the indices and distances, sorted from closest to furthest.
+    """
     distances = [np.dot(target, n) for n in neighbors]
-    sorted_indices = np.argsort(distances)
-    sorted_distances = np.sort(distances)
-    closest_index = sorted_indices[-2]  # SECOND LARGEST, because of cosine distance, and we do not want it to return itself
-    smallest_dist = distances[closest_index] 
-    return closest_index, smallest_dist, sorted_indices, sorted_distances
+    #print(f'Cos Distances are {distances}')
+    sorted_indices = np.argsort(distances)[::-1]   # for cosine, these need to be reversed
+    sorted_distances = np.sort(distances)[::-1]
+    #print(f"out of them, the order of the indices is \n{sorted_indices} \nDistances \n{sorted_distances}")
+    return sorted_indices, sorted_distances
     
 
 def calc_distance_euclidean(target, neighbors):
-    #smallest_dist = np.inf
-    #closest_index = None
-    #for i, n in enumerate(neighbors):
-    #    d = distance.euclidean(target, n)
-    #    if d < smallest_dist:    # Here smaller, because small values indicate closeness
-    #        smallest_dist = d
-    #        closest_index=i 
+    """
+    Calculate the euclidean distance between given embeddings and the given target.
+    Return the indices and distances, sorted from closest to furthest.
+    """
     distances = [eucdistance.euclidean(target, n) for n in neighbors]
+    #print(f'Euc Distances are {distances}')
     sorted_indices = np.argsort(distances)
     sorted_distances = np.sort(distances)
-    closest_index = sorted_indices[1]  # SECOND Smallest, because of eucl distance, and we do not want it to return itself
-    smallest_dist = distances[closest_index]
-    return closest_index, smallest_dist, sorted_indices, sorted_distances
+    #print(f"out of them, the order of the indices is \n{sorted_indices} \nDistances \n{sorted_distances}")
+    return sorted_indices, sorted_distances
 
 def get_NN(index, db, current_query, target_query, n_nn=10):
     D, I = index.search(current_query, n_nn+1) # +1 for itself
-    # D is the embedding point, I is the index
-    #print(I)
-    neighbors = [db[str(i)]["embeddings"] for i in I[0]]
-    ind, dist, all_ind, all_dist = calc_distance(target_query[0], neighbors)
-    ind_sanity, dist_sanity, all_ind_sanity, all_dist_sanity = calc_distance(current_query[0], neighbors)
+    # D is the faiss coordinates (not the same as embeddings), I is the index
+    # get the embeddings for these indices (I is nested so [0] for that)
+    neighbors = [db[str(i)]["embeddings"] for i in I[0]]   
+    sorted_ind, sorted_dist = calc_distance(target_query[0], neighbors)
+    sorted_ind_sanity, sorted_dist_sanity = calc_distance(current_query[0], neighbors)
+    #print(f"Beginnnings of sorted distance to target: {sorted_dist}\n Beginnings of sorted distance to current {sorted_dist_sanity}")
     #print("minimal distance to current", dist_sanity)
     #print("all distances to target:",all_dist)
     #print("all distances to current:", all_dist_sanity)
-    return I[0][ind], neighbors[ind].reshape((1,-1)), dist
+    #return I[0][ind], neighbors[ind].reshape((1,-1)), dist
+    return I[0], sorted_ind, sorted_dist, neighbors
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(prog="find_path.py")
     parser.add_argument('--model',type=str,help="Model name")
     parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
-    parser.add_argument('--n_nn', type=int, default=50, help="number of nearest neighbors")
-    parser.add_argument('--metric', choices=["euclidean", "cosine"], default="euclidean")
+    parser.add_argument('--n_nn', type=int, default=100, help="number of nearest neighbors")
+    parser.add_argument('--metric', choices=["euclidean", "cosine"], default="cosine")
     parser.add_argument('--model_batch_size', type=int, default=32)  # tested to be the fastest out of 32 64 128
     parser.add_argument('--filled_indexer')
     parser.add_argument('--database')
@@ -117,35 +113,71 @@ if __name__ == "__main__":
     calc_distance = calc_distance_cosine if options.metric=="cosine" else calc_distance_euclidean
     dist_min_limit = 1 if options.metric=="cosine" else 0
 
-    start_text = "Christmas Turkey recipe"
-    target_text = "Creme de Menthe Cake" #"It was okay."#Creme de Menthe Cake"
+    start_text = "In my opinion, science should be taught in schools more"
+    target_text = "Creme de Menthe cake" #"It was okay."#Creme de Menthe Cake"
     start_query = embed(model, [start_text], options)
     target_query = embed(model, [target_text], options)
-    #target_query_NN_ind, ind,  = get_NN(index, db, target_query, target_query, n_nn=options.n_nn)
+    _, target_neighbor_faiss_indices = index.search(target_query, options.n_nn+1)
+    target_neighbor_faiss_indices = target_neighbor_faiss_indices[0]
+    print("Indices closest to target are: ", target_neighbor_faiss_indices)
 
     current_text = start_text
     current_query = start_query.copy()
     current_id=None
     found_indices = []
-    max_iterations=200
+    found_distances = []
+    max_iterations=20
     while max_iterations > 0:
-        print(f"\n\nNew iteration, current {current_text} with current id {current_id}")
-        ind, current_query, dist = get_NN(index, db, current_query, target_query, n_nn=options.n_nn)
-        current_text = db[str(ind)]
+        print(f"\n-------------------------\nNew iteration: \n{current_id} \n{current_text} \n")
+        faiss_indices, sorted_indices, sorted_distances, embedded_neighbors = get_NN(index, db, current_query, target_query, n_nn=options.n_nn)
+        #print(f'Found faiss indices are {faiss_indices}\n')
+        #for f in faiss_indices:
+        #    print(f"\t{f}: {db[str(f)]}")
+        current_query = embedded_neighbors[sorted_indices[1]].reshape((1,-1)) # select second closest embedding
+        #print(f'From above faiss indices, selecting index {sorted_indices[1]}, as it is the second closest')
+        ind = faiss_indices[sorted_indices[1]] # Second closest index corresponts to it
+        #print(f'Selected index is {ind}')
+        dist = sorted_distances[1] # THIS TOO # second closest distance
+        #print(f'and it corresponds to distance {dist}')
+        current_text = db[str(ind)]["text"]
         current_id = ind
-        print(f'New current found! Distance to target: {dist}, index found {ind}: {current_text}')
+        #print(f'Selected {ind}: {current_text}, distance to target: {dist}, ')
         if ind not in found_indices:
             found_indices.append(ind)
-        #else:
-        #    print("Breaking because found the same again")
+            found_distances.append(dist)
+        elif ind in target_neighbor_faiss_indices:
+            print("FOUND NEAREST!!!")
+            found_indices.append(ind)
+            found_distances.append(dist)
+            break
+        else:
+            print("...Found the same again")
+            found_indices.append(None)
+            found_distances.append(found_distances[-1])
         #    break
         if abs(dist-dist_min_limit) < 1e-3:
             print("Breaking for small distance")
+            found_indices.append(ind)
+            found_distances.append(dist)
             break
         max_iterations -=1
 
-    for f in found_indices:
-        print(db[str(f)]["text"])
+    with open('out.txt', 'w') as outfile:
+        print(options, file=outfile)
+        print(f"Start: {start_text}",file=outfile)
+        print("\n---------------------------------\n", file=outfile)
+        for f in found_indices:
+            if f is None:
+                print("duplicate", end = "", file=outfile)
+            else:
+                data_point = db[str(f)]
+                print(data_point["register"], file=outfile)
+                print(data_point["text"][:2500], file=outfile)
+                #print(db[str(f)]["text"],file=outfile)
+            print("\n---------------------------------\n", file=outfile)
+        print(f"End: {target_text}",file=outfile)
+        #print("\n---------------------------------\n", file=outfile)
+        print("distances:\n",found_distances, file=outfile)
 
 
 
