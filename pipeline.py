@@ -4,6 +4,7 @@ from extract import transform
 from faissify import make_training_sample, train_faiss, index_w_fais
 from sanity_check import get_NN
 import os
+import glob
 import pathlib
 
 
@@ -35,6 +36,9 @@ parser.add_argument('--embedding_dim', type=int,help="Embedding dimension", defa
 parser.add_argument('--num_cells',type=int,help="Number of Voronoi cells in IVF", default = 1024)
 parser.add_argument('--num_quantizers', type=int, help="Number of quantizer in PQ", default = 64)
 parser.add_argument('--quantizer_bits', type=int, help="How many bits used to save quantizer values", default = 8)
+parser.add_argument('--graph_connections', type=int, help="How many connections in HSNW", default = 64)
+parser.add_argument('--ef_construction', type=int, help="How many layers for graph construction", default = 128)
+parser.add_argument('--ef_search', type=int, help="How layers for graph searc", default = 128)  
 # Verbosity
 parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
 
@@ -57,14 +61,37 @@ if options.index:
     assert (options.base_indexer is not None and options.training_data is not None) or options.trained_indexer is not None, "Give either base indexer and training data or trained indexer to index."
     assert options.database is not None, "Give a database to save results to to index"
     assert ".sqlite" in options.database, "Give valid path to an sqlite database (.sqlite)"
+
 if options.sanity_check:
     assert options.filled_indexer is not None and options.database is not None, "Give filled indexer and databse to do the sanity check"
     # See if database is in correct format
     assert ".sqlite" in options.database, "Give valid path to an sqlite database (.sqlite)"
 
 # handle data paths, which can be given as a comma-separated list:
-options.data = False if options.data is None else [d for d in options.data.split(",")]
-options.temporary_training_set = False if options.temporary_training_set is None else [d for d in options.temporary_training_set.split(",")]
+if options.data is None:
+    options.data = False 
+elif "," in options.data:
+    # It's a list, parse with split
+    options.data = [d for d in options.data.split(",")]
+elif os.path.isdir(options.data):
+    # It's a directory, find all .pkl files
+    options.data = glob.glob(os.path.join(options.data, '*.pkl'))
+else:
+    pass
+
+# Same for training data
+if options.temporary_training_set is None:
+    options.temporary_training_set = False 
+elif "," in options.temporary_training_set:
+    # It's a list, parse with split
+    options.temporary_training_set = [d for d in options.temporary_training_set.split(",")]
+elif os.path.isdir(options.temporary_training_set):
+    # It's a directory, find all .pkl files
+    options.temporary_training_set = glob.glob(os.path.join(options.temporary_training_set, '*.pkl'))
+else:
+    pass
+
+# check that you can iterate over training data
 if options.embed and len(options.data) > 1 and options.shard is None:
     print("Embedding calculation received multiple save paths but no shard. Give shard or only one save path.")
     exit(1)
