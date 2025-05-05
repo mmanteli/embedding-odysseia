@@ -21,8 +21,13 @@ export HF_HOME=/scratch/project_462000883/hf_cache"
 # modify options in this file, or make a copy, or don't, I'm just text on a screen.
 # Read the comments in this file (or documentation, if it exists) carefully!
 
+
+# MOST IMPORTANT PARAMETERS
 # this will affect saving paths
-jobname="test-pipeline"
+jobname="embed-and-index" # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
+# this will be piped in to extract.py, can be path, then all .jsonl's in the path will be piped in parallel jobs.
+data_to_embed="/scratch/project_462000883/amanda/register-data/"
+path_prefix_for_results="/scratch/project_462000883/amanda/embedding-extraction/jobs/${jobname}"
 
 # what action to take
 action=$1
@@ -35,26 +40,24 @@ case $action in
         exit 1
 esac
 
-# this will be piped in to extract.py, can be path, then all .jsonls in the path will be piped.
-data_to_embed="/scratch/project_462000883/amanda/register-data/"
 
 # Embedding extraction related options
 model="e5"
 task="STS"
-data="/scratch/project_462000883/amanda/embedding-extraction/embedded-data/e5/${jobname}/" # location to save the embeddings, and read in indexing
-temporary_training_set="/scratch/project_462000883/amanda/embedding-extraction/training-data/${jobname}/" # location for temp training data files, read in indexing, so that we dont have to go through the data twice
+data="${path_prefix_for_results}/embedded-data/${model}/" # location to save the embeddings, and read in indexing
+temporary_training_set="${path_prefix_for_results}/training-data/" # location for temp training data files, read in indexing, so that we dont have to go through the data twice
 data_suffix=""  # suffix for saving the data. Applied to both above!! See loop in "embed" below, where we assing this !!!!
-threshold=0.2   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
+threshold=0.1   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
 # faissify.py will complain if it is too little, and the indexer will not work. You don't have to re-run the embedding step, faissify.py can create its own training data if temporary training set does not exist.
 split_by="truncate"   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
 chunk_size=2500  # this is the number of units chosen, for example if sentence is more than 2500 chars long, this can be used to truncate. 2500 char ~= 512 tokens
 
-# indexing with faiss related options
-base_indexer="FlatL2"    # indexer type. IVFPQ is fast but not that accurate, HNSW is memory hungry and slow but nice, Flat2D is best but not for large data.
-training_data="/scratch/project_462000883/amanda/embedding-extraction/training-data/${jobname}-${base_indexer}.pt"   # if no temp training data, this is created. If temp training data, it is concatenated, shuffled and saved here.
-trained_indexer="/scratch/project_462000883/amanda/embedding-extraction/trained-indexers/${jobname}-${base_indexer}.index"  # save trained indexer here (mainly in case filling the index crashes)
-filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/${jobname}-${base_indexer}.index" # save filled indexer here
-database="/scratch/project_462000883/amanda/embedding-extraction/indexed-data/${jobname}-${base_indexer}.sqlite" # save corresponding sql database here
+# indexing with faiss + sanity check related options
+base_indexer="IVFPQ"    # indexer type. IVFPQ is fast but not that accurate, HNSW is memory hungry and slow but nice, Flat2D is best but not for large data.
+training_data="${path_prefix_for_results}/training-data/${base_indexer}_training_data.pt"   # if no temp training data, this is created. If temp training data, it is concatenated, shuffled and saved here.
+trained_indexer="${path_prefix_for_results}/trained-indexers/${base_indexer}.index"  # save trained indexer here (mainly in case filling the index crashes)
+filled_indexer="${path_prefix_for_results}/filled-indexers/${base_indexer}.index" # save filled indexer here
+database="${path_prefix_for_results}/filled-indexers/${base_indexer}.sqlite" # save corresponding sql database here
 # Verbosity
 debug="True"
 
@@ -77,8 +80,8 @@ case $action in
                         --debug=$debug < $filename"
             sbatch --job-name=embed \
                 --account=$project \
-                --output=logs/${jobname}/%x-%j.out \
-                --time=00:20:00 \
+                --output=${path_prefix_for_results}/logs/%x-%j.out \
+                --time=01:30:00 \
                 --partition=small-g \
                 --nodes=1 \
                 --ntasks=1 \
@@ -112,7 +115,7 @@ EOF
                         --debug=$debug < $data_to_embed"
             sbatch --job-name=embed \
                 --account=$project \
-                --output=logs/${jobname}/%x-%j.out \
+                --output=${path_prefix_for_results}/logs/%x-%j.out \
                 --time=02:30:00 \
                 --partition=small-g \
                 --nodes=1 \
@@ -146,7 +149,7 @@ EOF
                     --debug=$debug"
         sbatch --job-name=index \
                --account=$project \
-               --output=logs/${jobname}/%x-%j.out \
+               --output=${path_prefix_for_results}/logs/%x-%j.out \
                --time=02:30:00 \
                --partition=small \
                --nodes=1 \
@@ -172,7 +175,7 @@ EOF
                     --debug=$debug"
         sbatch --job-name=sanity \
                --account=$project \
-               --output=logs/${jobname}/%x-%j.out \
+               --output=${path_prefix_for_results}/logs/%x-%j.out \
                --time=00:30:00 \
                --partition=debug \
                --nodes=1 \

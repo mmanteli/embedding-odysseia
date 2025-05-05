@@ -144,6 +144,9 @@ if options.embed:
 if options.index:
     # check if the trained indexer already exists:
     indexer = None   # this is so we can differentiate if training was done in this step or earlier, we do not have to load the index if we just trained it
+    os.makedirs(os.path.dirname(options.trained_indexer), exist_ok=True)
+    os.makedirs(os.path.dirname(options.filled_indexer), exist_ok=True)
+    os.makedirs(os.path.dirname(options.database), exist_ok=True)
     if not pathlib.Path(options.trained_indexer).is_file():
         # check if training data exists in .pytorch format:
         if not pathlib.Path(options.training_data).is_file():
