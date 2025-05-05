@@ -96,7 +96,7 @@ def index_w_fais(options, index=None):
         db[i] = beet
         if (i+1)%1000 == 0:  # for every batch
             E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
-            if options.base_indexer == "HNSW":
+            if options.base_indexer != "IVFPQ":
                 index.add(E)  # Here we need to trust that they match
             else:
                 index.add_with_ids(E, I)
@@ -105,12 +105,13 @@ def index_w_fais(options, index=None):
             emb_to_index = []
             id_to_index = []
     # tail values
-    E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
-    if options.base_indexer == "HNSW":
-        index.add(E)  # Here we need to trust that they match
-    else:
-        index.add_with_ids(E, I)
-    db.commit()
+    if emb_to_index != []:
+        E, I = np.vstack([e for e in emb_to_index]), np.array(id_to_index)
+        if options.base_indexer != "IVFPQ":
+            index.add(E)  # Here we need to trust that they match
+        else:
+            index.add_with_ids(E, I)
+        db.commit()
     if options.debug: print("Filling done, saving filled index", flush=True)
     index_filled = index
     faiss.write_index(index_filled, options.filled_indexer)
