@@ -1,8 +1,8 @@
 from jsonargparse import ArgumentParser
 import sys
-from extract import transform
-from faissify import make_training_sample, train_faiss, index_w_fais
-from sanity_check import get_NN
+from embedding-extraction.extract import transform
+from embedding-extraction.faissify import make_training_sample, train_faiss, index_w_fais
+from embedding-extraction.sanity_check import get_NN
 import os
 import glob
 import pathlib
