@@ -1,21 +1,28 @@
 #!/bin/bash
-#SBATCH -A project_462000883
-#SBATCH -p debug
-#SBATCH --ntasks-per-node=1
-##SBATCH --gpus-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=20G
-#SBATCH -t 00:30:00
-#SBATCH -N 1
-#SBATCH -J pipeline-index-full-docs-sanity
-#SBATCH -o logs/%x-%j.out
+project="project_462000883"
 
-
-module purge
+module_setup="module purge
 module use /appl/local/csc/modulefiles/
 module load pytorch/2.4
 export PYTHONPATH=/scratch/project_462000883/amanda/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
+export HF_HOME=/scratch/project_462000883/hf_cache"
 
+
+# This script used to run embedding, indexing and a sanity check in one, to make argument handling consistent.
+# use as 
+#
+# ./run_pipeline.sh [embed|index|sanity_check]
+#
+# This starts batchjobs for pipeline.py which redirects to extract.py (embed), faissify.py (index) or sanity_check.py (sanity).
+# (run "chmod +x run_pipeline.sh" if it complains about rights)
+# As we want the embedding calculation to be in parallel, give the data in batches,
+# those are piped to extract.py.
+# I.e. have your data in medium sized shards.
+# modify options in this file, or make a copy, or don't, I'm just text on a screen.
+# Read the comments in this file (or documentation, if it exists) carefully!
+
+# this will affect saving paths
+jobname="test-pipeline"
 
 # what action to take
 action=$1
@@ -24,52 +31,110 @@ case $action in
         # Ok
     ;;
     *)
-        echo "action given poorly, give as embed, index, sanity_check, exiting"
+        echo "action given poorly, give as embed, index, sanity_check. Exiting"
         exit 1
 esac
 
-REGISTER=$2
+# this will be piped in to extract.py, can be path, then all .jsonls in the path will be piped.
+data_to_embed="/scratch/project_462000883/amanda/register-data/"
 
-jobname="full_docs"
-# this will be piped in to extract.py
-#data_to_embed="/scratch/project_462000883/amanda/register-data/${REGISTER}.jsonl"
-data_to_embed="/scratch/project_462000353/HPLT-REGISTERS/samples-150B-by-register-xlmrl/original_corrected/eng_Latn_${REGISTER}.jsonl"
 # Embedding extraction related options
 model="e5"
 task="STS"
-data="/scratch/project_462000883/amanda/embedding-extraction/embedded-data/e5/full_docs/" #"/scratch/project_462000883/amanda/embedding-extraction/embedded-data/e5/${jobname}/${REGISTER}.pkl"  # location to save the embeddings
-shard=0   #we use the first index in data (can be commaseparated list)
-temporary_training_set="/scratch/project_462000883/amanda/embedding-extraction/training-data/full_docs/" #"/scratch/project_462000883/amanda/embedding-extraction/training-data/${jobname}/${REGISTER}.pkl"
-threshold=0.1
-split_by="truncate"
-chunk_size=2500
+data="/scratch/project_462000883/amanda/embedding-extraction/embedded-data/e5/${jobname}/" # location to save the embeddings, and read in indexing
+temporary_training_set="/scratch/project_462000883/amanda/embedding-extraction/training-data/${jobname}/" # location for temp training data files, read in indexing, so that we dont have to go through the data twice
+data_suffix=""  # suffix for saving the data. Applied to both above!! See loop in "embed" below, where we assing this !!!!
+threshold=0.2   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
+# faissify.py will complain if it is too little, and the indexer will not work. You don't have to re-run the embedding step, faissify.py can create its own training data if temporary training set does not exist.
+split_by="truncate"   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
+chunk_size=2500  # this is the number of units chosen, for example if sentence is more than 2500 chars long, this can be used to truncate. 2500 char ~= 512 tokens
 
 # indexing with faiss related options
-base_indexer="HNSW"
-training_data="/scratch/project_462000883/amanda/embedding-extraction/training-data/${jobname}-${base_indexer}.pt"
-trained_indexer="/scratch/project_462000883/amanda/embedding-extraction/trained-indexers/${jobname}-${base_indexer}.index"
-filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/${jobname}-${base_indexer}.index"
-database="/scratch/project_462000883/amanda/embedding-extraction/indexed-data/${jobname}-${base_indexer}.sqlite"
+base_indexer="FlatL2"    # indexer type. IVFPQ is fast but not that accurate, HNSW is memory hungry and slow but nice, Flat2D is best but not for large data.
+training_data="/scratch/project_462000883/amanda/embedding-extraction/training-data/${jobname}-${base_indexer}.pt"   # if no temp training data, this is created. If temp training data, it is concatenated, shuffled and saved here.
+trained_indexer="/scratch/project_462000883/amanda/embedding-extraction/trained-indexers/${jobname}-${base_indexer}.index"  # save trained indexer here (mainly in case filling the index crashes)
+filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/${jobname}-${base_indexer}.index" # save filled indexer here
+database="/scratch/project_462000883/amanda/embedding-extraction/indexed-data/${jobname}-${base_indexer}.sqlite" # save corresponding sql database here
 # Verbosity
 debug="True"
 
 
 
-export HF_HOME=/scratch/project_462000883/hf_cache
-echo Starting at $(date +%H:%M.%S)
 case $action in
-    embed)  
-        srun python pipeline.py \
-                    --${action} \
-                    --model=$model \
-                    --data=$data \
-                    --temp=$temporary_training_set \
-                    --split_by=$split_by \
-                    --threshold=$threshold \
-                    --debug=$debug < $data_to_embed
+    embed)
+        if [[ -d $data_to_embed ]]; then   # if a dir, loop over files
+            for filename in $data_to_embed*.jsonl; do
+            # define the data suffix:
+            data_suffix=$(basename "$filename" .jsonl)   # basename without the extension
+            CMD="srun python pipeline.py \
+                        --${action} \
+                        --model=$model \
+                        --data=$data \
+                        --temp=$temporary_training_set \
+                        --data_suffix=$data_suffix \
+                        --split_by=$split_by \
+                        --threshold=$threshold \
+                        --debug=$debug < $filename"
+            sbatch --job-name=embed \
+                --account=$project \
+                --output=logs/${jobname}/%x-%j.out \
+                --time=00:20:00 \
+                --partition=small-g \
+                --nodes=1 \
+                --ntasks=1 \
+                --gpus-per-node=1 \
+                --cpus-per-task=4 \
+                --mem=20G <<EOF
+#!/bin/bash
+echo "Starting: \$(date)"
+echo "Running embedding..."
+echo $CMD
+
+$module_setup
+$CMD
+echo "Ending: \$(date)"
+EOF
+            done
+        elif [[ -f $data_to_embed ]]; then   # if one file
+            if [[ $data_to_embed != *.jsonl ]]; then
+                echo "File to embed given incorrectly. Give as dir containing jsonl's, or one jsonl file"
+                exit 1
+            fi
+            data_suffix=$(basename "$filename" .jsonl)   # basename without the extension
+            CMD="srun python pipeline.py \
+                        --${action} \
+                        --model=$model \
+                        --data=$data \
+                        --temp=$temporary_training_set \
+                        --data_suffix=$data_suffix \
+                        --split_by=$split_by \
+                        --threshold=$threshold \
+                        --debug=$debug < $data_to_embed"
+            sbatch --job-name=embed \
+                --account=$project \
+                --output=logs/${jobname}/%x-%j.out \
+                --time=02:30:00 \
+                --partition=small-g \
+                --nodes=1 \
+                --ntasks=1 \
+                --gpus-per-node=1 \
+                --cpus-per-task=4 \
+                --mem=20G <<EOF
+#!/bin/bash
+echo "Starting: \$(date)"
+echo "Running embedding..."
+echo $CMD
+
+$module_setup
+$CMD
+echo "Ending: \$(date)"
+EOF
+        else
+                echo "Embed option given with invalid data to embed. Give as dir containing jsonl's, or one jsonl file."
+        fi
     ;;
     index)
-        srun python pipeline.py \
+        CMD="srun python pipeline.py \
                     --${action} \
                     --base_indexer=$base_indexer \
                     --data=$data \
@@ -78,17 +143,52 @@ case $action in
                     --trained_indexer=$trained_indexer \
                     --filled_indexer=$filled_indexer \
                     --database=$database \
-                    --debug=$debug
+                    --debug=$debug"
+        sbatch --job-name=index \
+               --account=$project \
+               --output=logs/${jobname}/%x-%j.out \
+               --time=02:30:00 \
+               --partition=small \
+               --nodes=1 \
+               --ntasks=1 \
+               --cpus-per-task=4 \
+               --mem=20G <<EOF
+#!/bin/bash
+echo "Starting: \$(date)"
+echo "Running indexing..."
+echo $CMD
+
+$module_setup
+$CMD
+echo "Ending: \$(date)"
+EOF
     ;;
     sanity_check)
-        srun python pipeline.py \
+        CMD="srun python pipeline.py \
                     --${action} \
                     --model=$model \
                     --filled_indexer=$filled_indexer \
                     --database=$database \
-                    --debug=$debug
+                    --debug=$debug"
+        sbatch --job-name=sanity \
+               --account=$project \
+               --output=logs/${jobname}/%x-%j.out \
+               --time=00:30:00 \
+               --partition=debug \
+               --nodes=1 \
+               --ntasks=1 \
+               --cpus-per-task=4 \
+               --mem=20G <<EOF
+#!/bin/bash
+echo "Starting: \$(date)"
+echo "Running sanity check..."
+echo $CMD
+
+$module_setup
+$CMD
+echo "Ending: \$(date)"
+EOF
     ;;
     *)
-    #should not happen
+        echo "This should not happen!"
 esac
-echo Ending at $(date +%H:%M.%S)

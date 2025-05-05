@@ -17,8 +17,8 @@ parser.add_argument('--sanity_check', action="store_true")
 # Embedding extraction related options
 parser.add_argument('--model',type=str, help="Model name")
 parser.add_argument('--task', default="STS", choices=["STS","Summarization","BitextMining","Retrieval"], help='Task (==which query to use)')
-parser.add_argument('--data','--embedded', '--save', type=str, help="Path to save embedings in .pkl format", default=None)
-parser.add_argument('--shard', type=int, default=None, help="If you give --data/--temporary_training_set as comma-separated list, this index is chosen.")
+parser.add_argument('--data','--embedded', '--save', type=str, help="Path to save embedings in .pkl format, can only be dir, then set data_suffix.", default=None)
+parser.add_argument('--data_suffix', type=str, default=None, help="See --data.")
 parser.add_argument('--batch_size', '--batchsize', type=int,help="Document batch size for embeddings", default = 500) 
 parser.add_argument('--model_batch_size', type=int, help="Model inner batch size", default=32)  # tested to be the fastest out of 32 64 128
 parser.add_argument('--split_by', default="sentences", choices=["tokens", "sentences", "chars", "words", "truncate"], help='What to use for splitting too long texts, truncate=nothing')
@@ -54,49 +54,49 @@ if not any([options.embed, options.index, options.sanity_check]):
     exit(1)
 
 if options.embed:
-    assert options.model is not None, "Give model to embed with"
-    assert options.data is not None, "Give path to save embedding results to"
+    assert options.model is not None, "Give --model to embed with"
+    assert options.data is not None, "Give --data path to save embedding results to"
+    assert options.data_suffix is not None or ".pkl" in options.data, f"Give the saving location for embeddings as dir (--data={options.data}) and suffix (--data_suffix={options.data_suffix}), or --data as one .pkl file"
+    # check format
+    if options.data_suffix and ".pkl" not in options.data_suffix:
+        options.data_suffix += ".pkl"
+    if options.split_by == "sentences":
+        options.chunk_size=2500   # about model sequence length
 
 if options.index:
     assert (options.base_indexer is not None and options.training_data is not None) or options.trained_indexer is not None, "Give either base indexer and training data or trained indexer to index."
-    assert options.database is not None, "Give a database to save results to to index"
-    assert ".sqlite" in options.database, "Give valid path to an sqlite database (.sqlite)"
+    assert options.database is not None, "Give a --database to save results to to index"
+    assert ".sqlite" in options.database, "Give valid --database path to an sqlite database (.sqlite)"
+    # parse --data for indexing (here you can give it as a more nuanced format):
+    # handle data paths, which can be given as a comma-separated list:
+    if options.data is None:
+        options.data = False # not needed every time, e.g. if only training
+    elif "," in options.data:
+        # It's a list, parse with split
+        options.data = [d for d in options.data.split(",")]
+    elif os.path.isdir(options.data):
+        # It's a directory, find all .pkl files
+        options.data = glob.glob(os.path.join(options.data, '*.pkl'))
+    else:
+        pass
+    # Same for training data
+    if options.temporary_training_set is None:
+        options.temporary_training_set = False 
+    elif "," in options.temporary_training_set:
+        # It's a list, parse with split
+        options.temporary_training_set = [d for d in options.temporary_training_set.split(",")]
+    elif os.path.isdir(options.temporary_training_set):
+        # It's a directory, find all .pkl files
+        options.temporary_training_set = glob.glob(os.path.join(options.temporary_training_set, '*.pkl'))
+    else:
+        pass
 
 if options.sanity_check:
     assert options.filled_indexer is not None and options.database is not None, "Give filled indexer and databse to do the sanity check"
     # See if database is in correct format
     assert ".sqlite" in options.database, "Give valid path to an sqlite database (.sqlite)"
 
-# handle data paths, which can be given as a comma-separated list:
-if options.data is None:
-    options.data = False 
-elif "," in options.data:
-    # It's a list, parse with split
-    options.data = [d for d in options.data.split(",")]
-elif os.path.isdir(options.data):
-    # It's a directory, find all .pkl files
-    options.data = glob.glob(os.path.join(options.data, '*.pkl'))
-else:
-    pass
 
-# Same for training data
-if options.temporary_training_set is None:
-    options.temporary_training_set = False 
-elif "," in options.temporary_training_set:
-    # It's a list, parse with split
-    options.temporary_training_set = [d for d in options.temporary_training_set.split(",")]
-elif os.path.isdir(options.temporary_training_set):
-    # It's a directory, find all .pkl files
-    options.temporary_training_set = glob.glob(os.path.join(options.temporary_training_set, '*.pkl'))
-else:
-    pass
-
-# check that you can iterate over training data
-if options.embed and len(options.data) > 1 and options.shard is None:
-    print("Embedding calculation received multiple save paths but no shard. Give shard or only one save path.")
-    exit(1)
-if options.split_by == "sentences":
-    options.chunk_size=2500   # about model sequence length
 
 
 print(options, flush=True)
@@ -106,15 +106,15 @@ print(options, flush=True)
 
 ### EMBEDDING
 if options.embed:
-    # See if a training set is needed already here
+    # If create temp training set at the same time:
     if options.temporary_training_set:
-        if options.shard:    # select shard if needed
-            save_embed_file = options.data[options.shard]
-            temp_train_file = options.temporary_training_set[options.shard]
+        if options.data_suffix:
+            save_embed_file = os.path.join(options.data, options.data_suffix)
+            temp_train_file = os.path.join(options.temporary_training_set, options.data_suffix)
         else:
-            save_embed_file = options.data[0]
-            temp_train_file = options.temporary_training_set[0]
-        # assert that extension is correct and that list is only given with a shard
+            save_embed_file = options.data
+            temp_train_file = options.temporary_training_set
+        # assert that extension is correct
         assert save_embed_file[-4:]==".pkl" and temp_train_file[-4:]==".pkl" and "," not in save_embed_file and "," not in temp_train_file, f"--data or --temporary_training_set read incorrectly save = {save_embed_file}, temp = {temp_train_file} "
         # make directories if needed
         if os.path.dirname(save_embed_file):
@@ -126,10 +126,10 @@ if options.embed:
             transform(f, options, f_train=f_train)
     # If no training data created in this step
     else:
-        if options.shard: # select shard if needed
-            save_embed_file = options.data[options.shard]
+        if options.data_suffix:
+            save_embed_file = os.path.join(options.data, options.data_suffix)
         else:
-            save_embed_file = options.data[0]
+            save_embed_file = options.data
         # assert that extension is correct and that list is only given with a shard
         assert save_embed_file[-4:]==".pkl" and "," not in save_embed_file, f"--data or --temporary_training_set read incorrectly save = {save_embed_file}, temp = {temp_train_file} "
         # make directories if needed
@@ -143,7 +143,7 @@ if options.embed:
 ### INDEXING
 if options.index:
     # check if the trained indexer already exists:
-    indexer = None
+    indexer = None   # this is so we can differentiate if training was done in this step or earlier, we do not have to load the index if we just trained it
     if not pathlib.Path(options.trained_indexer).is_file():
         # check if training data exists in .pytorch format:
         if not pathlib.Path(options.training_data).is_file():
