@@ -65,7 +65,7 @@ def train_faiss(options):
         # using only FlatL2
         if options.debug: print("Using FlatL2 as the full indexer.", flush=True)
         index = quantizer
-    if not index.is_trained or options.base_indexer != "HNSW":
+    if not index.is_trained:
         training_vectors = torch.load(options.training_data)
         if options.debug: print(f'Training {options.base_indexer} on {len(training_vectors)} vectors.', flush=True)
         index.train(training_vectors)
