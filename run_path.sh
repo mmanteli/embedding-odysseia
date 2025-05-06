@@ -14,9 +14,9 @@
 module purge
 module use /appl/local/csc/modulefiles/
 module load pytorch/2.4
-export PYTHONPATH=/scratch/project_462000883/amanda/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
+export PYTHONPATH=/scratch/project_462000883/amanda/embedding-odysseia/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 export HF_HOME=/scratch/project_462000883/hf_cache
 
-srun python find_path.py --model="e5" \
-                         --filled_indexer="/scratch/project_462000883/amanda/embedding-extraction/filled-indexers/dtp-OP.index" \
-                         --database="/scratch/project_462000883/amanda/embedding-extraction/indexed-data/dtp-OP.sqlite"
+srun python embedding_extraction/find_path.py --model="e5" \
+                         --filled_indexer="/scratch/project_462000883/amanda/embedding-odysseia/jobs/full-docs-29-04-2025/filled-indexers/full_docs-IVFPQ.index" \
+                         --database="/scratch/project_462000883/amanda/embedding-odysseia/jobs/full-docs-29-04-2025/filled-indexers/full_docs-IVFPQ.sqlite"

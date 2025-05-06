@@ -4,7 +4,7 @@ project="project_462000883"
 module_setup="module purge
 module use /appl/local/csc/modulefiles/
 module load pytorch/2.4
-export PYTHONPATH=/scratch/project_462000883/amanda/embedding-extraction/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
+export PYTHONPATH=/scratch/project_462000883/amanda/embedding-odysseia/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 export HF_HOME=/scratch/project_462000883/hf_cache"
 
 
