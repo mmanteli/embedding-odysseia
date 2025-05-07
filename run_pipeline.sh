@@ -24,10 +24,20 @@ export HF_HOME=/scratch/project_462000883/hf_cache"
 
 # MOST IMPORTANT PARAMETERS
 # this will affect saving paths
-jobname="embed-and-index" # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
+jobname="sentences-$(date +%d-%m-%y)" # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
 # this will be piped in to extract.py, can be path, then all .jsonl's in the path will be piped in parallel jobs.
-data_to_embed="/scratch/project_462000883/amanda/register-data/"
-path_prefix_for_results="/scratch/project_462000883/amanda/embedding-extraction/jobs/${jobname}"
+#data_to_embed="/scratch/project_462000883/amanda/register-data/"   # make sure to have "/" in the end
+pf="/scratch/project_462000353/HPLT-REGISTERS/samples-150B-by-register-xlmrl/original_corrected"
+data_to_embed="${pf}/eng_Latn_dtp.jsonl \
+                ${pf}/eng_Latn_OP.jsonl \
+                ${pf}/eng_Latn_HI-IN.jsonl \
+                ${pf}/eng_Latn_LY.jsonl \
+                ${pf}/eng_Latn_ne.jsonl \
+                ${pf}/eng_Latn_IP.jsonl \
+                ${pf}/eng_Latn_ID.jsonl \
+                ${pf}/eng_Latn_NA.jsonl \
+                ${pf}/eng_Latn_SP.jsonl"
+path_prefix_for_results="/scratch/project_462000883/amanda/embedding-odysseia/jobs/${jobname}"
 
 # what action to take
 action=$1
@@ -49,7 +59,7 @@ temporary_training_set="${path_prefix_for_results}/training-data/" # location fo
 data_suffix=""  # suffix for saving the data. Applied to both above!! See loop in "embed" below, where we assing this !!!!
 threshold=0.1   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
 # faissify.py will complain if it is too little, and the indexer will not work. You don't have to re-run the embedding step, faissify.py can create its own training data if temporary training set does not exist.
-split_by="truncate"   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
+split_by="sentences"   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
 chunk_size=2500  # this is the number of units chosen, for example if sentence is more than 2500 chars long, this can be used to truncate. 2500 char ~= 512 tokens
 
 # indexing with faiss + sanity check related options
@@ -67,27 +77,28 @@ case $action in
     embed)
         if [[ -d $data_to_embed ]]; then   # if a dir, loop over files
             for filename in $data_to_embed*.jsonl; do
-            # define the data suffix:
-            data_suffix=$(basename "$filename" .jsonl)   # basename without the extension
-            CMD="srun python pipeline.py \
-                        --${action} \
-                        --model=$model \
-                        --data=$data \
-                        --temp=$temporary_training_set \
-                        --data_suffix=$data_suffix \
-                        --split_by=$split_by \
-                        --threshold=$threshold \
-                        --debug=$debug < $filename"
-            sbatch --job-name=embed \
-                --account=$project \
-                --output=${path_prefix_for_results}/logs/%x-%j.out \
-                --time=01:30:00 \
-                --partition=small-g \
-                --nodes=1 \
-                --ntasks=1 \
-                --gpus-per-node=1 \
-                --cpus-per-task=4 \
-                --mem=20G <<EOF
+                # define the data suffix:
+                data_suffix=$(basename "$filename" .jsonl)   # basename without the extension
+                CMD="srun python pipeline.py \
+                            --${action} \
+                            --model=$model \
+                            --data=$data \
+                            --temp=$temporary_training_set \
+                            --data_suffix=$data_suffix \
+                            --split_by=$split_by \
+                            --threshold=$threshold \
+                            --debug=$debug < $filename"
+                #echo $CMD
+                sbatch --job-name=embed \
+                    --account=$project \
+                    --output=${path_prefix_for_results}/logs/%x-%j.out \
+                    --time=02:30:00 \
+                    --partition=small-g \
+                    --nodes=1 \
+                    --ntasks=1 \
+                    --gpus-per-node=1 \
+                    --cpus-per-task=4 \
+                    --mem=20G <<EOF
 #!/bin/bash
 echo "Starting: \$(date)"
 echo "Running embedding..."
@@ -99,8 +110,12 @@ echo "Ending: \$(date)"
 EOF
             done
         elif [[ -f $data_to_embed ]]; then   # if one file
+            if ! [[ -f $data_to_embed ]]; then
+                echo "Cannot find given data to embed (${data_to_embed})"
+                exit 1
+            fi
             if [[ $data_to_embed != *.jsonl ]]; then
-                echo "File to embed given incorrectly. Give as dir containing jsonl's, or one jsonl file"
+                echo "Given data to embed does not have .jsonl extension (${data_to_embed})"
                 exit 1
             fi
             data_suffix=$(basename "$filename" .jsonl)   # basename without the extension
@@ -113,6 +128,7 @@ EOF
                         --split_by=$split_by \
                         --threshold=$threshold \
                         --debug=$debug < $data_to_embed"
+            #echo $CMD
             sbatch --job-name=embed \
                 --account=$project \
                 --output=${path_prefix_for_results}/logs/%x-%j.out \
@@ -132,8 +148,48 @@ $module_setup
 $CMD
 echo "Ending: \$(date)"
 EOF
-        else
-                echo "Embed option given with invalid data to embed. Give as dir containing jsonl's, or one jsonl file."
+        else   # trying last one, is it a list
+            for filename in ${data_to_embed[@]}; do
+                echo $filename
+                if ! [[ -f $filename ]] ; then
+                    echo "Embed option given with invalid data to embed (${filename}). Give as dir containing jsonl's, one jsonl file, or list of jsonl files."
+                    exit 1
+                fi
+                if [[ $filename != *.jsonl ]]; then
+                    echo "Data to be embedded not in .jsonl format"
+                    exit 1
+                fi
+                data_suffix=$(basename "$filename" .jsonl)   # basename without the extension
+                CMD="srun python pipeline.py \
+                            --${action} \
+                            --model=$model \
+                            --data=$data \
+                            --temp=$temporary_training_set \
+                            --data_suffix=$data_suffix \
+                            --split_by=$split_by \
+                            --threshold=$threshold \
+                            --debug=$debug < $filename"
+                #echo $CMD
+                sbatch --job-name=embed \
+                    --account=$project \
+                    --output=${path_prefix_for_results}/logs/%x-%j.out \
+                    --time=02:30:00 \
+                    --partition=small-g \
+                    --nodes=1 \
+                    --ntasks=1 \
+                    --gpus-per-node=1 \
+                    --cpus-per-task=4 \
+                    --mem=20G <<EOF
+#!/bin/bash
+echo "Starting: \$(date)"
+echo "Running embedding..."
+echo $CMD
+
+$module_setup
+$CMD
+echo "Ending: \$(date)"
+EOF
+            done
         fi
     ;;
     index)
@@ -147,6 +203,7 @@ EOF
                     --filled_indexer=$filled_indexer \
                     --database=$database \
                     --debug=$debug"
+        #echo $CMD
         sbatch --job-name=index \
                --account=$project \
                --output=${path_prefix_for_results}/logs/%x-%j.out \
@@ -173,6 +230,7 @@ EOF
                     --filled_indexer=$filled_indexer \
                     --database=$database \
                     --debug=$debug"
+        #echo $CMD
         sbatch --job-name=sanity \
                --account=$project \
                --output=${path_prefix_for_results}/logs/%x-%j.out \
