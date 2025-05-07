@@ -15,6 +15,10 @@ import pandas as pd
 import nltk
 #nltk.download('punkt')
 #nltk.download('punkt_tab')
+try:
+    from model_utils import *
+except:
+    from embedding_extraction.model_utils import *
 
 
 from datasets.utils.logging import disable_progress_bar      #prevent the libraries from displaying a progress bar

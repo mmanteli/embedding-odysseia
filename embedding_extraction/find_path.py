@@ -6,35 +6,13 @@ import torch
 import numpy as np
 from scipy.spatial import distance as eucdistance
 #distance.euclidean([1, 0, 0], [0, 1, 0]) == 1.41
+try:
+    from model_utils import *
+except:
+    from embedding_extraction.model_utils import *
 # global
-calc_distance=None
-dist_min_limit=None
-model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
-                   "qwen" : "Alibaba-NLP/gte-Qwen2-7B-instruct",
-                   "jina" : "jinaai/jina-embeddings-v3"
-}
-def get_task_def_by_task_name_and_type(task_type: str) -> str:
-    if task_type in ['STS']:
-        return "Retrieve semantically similar text."
-    if task_type in ['Summarization']:
-        return "Given a news summary, retrieve other semantically similar summaries"
-    if task_type in ['BitextMining']:
-        return "Retrieve parallel sentences."
-    if task_type in ['Retrieval']:
-        return "Given a web search query, retrieve relevant passages that answer the query"
-    raise ValueError(f"No instruction config for task {task_type}")
-
-def get_all_prompts():
-    return {task: get_task_def_by_task_name_and_type(task) for task in ['STS', 'Summarization', 'BitextMining','Retrieval']}
-
-def get_detailed_instruct(task_description: str, query: str) -> str:
-    return f'Instruct: {task_description}\nQuery: {query}'
-
-def get_query(task_name:str, text:str) -> list:
-    # get the task explanation
-    task = get_task_def_by_task_name_and_type(task_name)
-    # combine task description and text
-    return get_detailed_instruct(task, text)
+#calc_distance=None
+#dist_min_limit=None
 
 
 def embed(model, input_texts, options):
