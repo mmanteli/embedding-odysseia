@@ -3,6 +3,10 @@ from sqlitedict import SqliteDict
 from sentence_transformers import SentenceTransformer
 from jsonargparse import ArgumentParser
 import torch
+try:
+    from model_utils import model_name_dict, get_all_prompts
+except ImportError:
+    from embedding_extraction.model_utils import model_name_dict, get_all_prompts
 
 model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
                    "qwen" : "Alibaba-NLP/gte-Qwen2-7B-instruct",

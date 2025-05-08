@@ -84,7 +84,7 @@ if options.index:
         options.data = False  # not needed every time, e.g. if only training
     elif "," in options.data:
         # It's a list, parse with split
-        options.data = [d for d in options.data.split(",")]
+        options.data = list(options.data.split(",")) #[d for d in options.data.split(",")]
     elif os.path.isdir(options.data):
         # It's a directory, find all .pkl files
         options.data = glob.glob(os.path.join(options.data, "*.pkl"))
@@ -95,7 +95,7 @@ if options.index:
         options.temporary_training_set = False
     elif "," in options.temporary_training_set:
         # It's a list, parse with split
-        options.temporary_training_set = [d for d in options.temporary_training_set.split(",")]
+        options.temporary_training_set = list(options.temporary_training_set.split(","))
     elif os.path.isdir(options.temporary_training_set):
         # It's a directory, find all .pkl files
         options.temporary_training_set = glob.glob(os.path.join(options.temporary_training_set, "*.pkl"))
@@ -112,7 +112,8 @@ if options.sanity_check:
 
 print(options, flush=True)
 
-training_fraction_for_sampled = 0.2  ##### TODO NOTE THIS IS ONLY BECAUSE RUNNING OUT OF MEM
+training_fraction_for_sampled = 1  ##### NOTE if you ended up sampling too much training data in embed,
+#### you can set this to smaller value. Other than that, keep this at 1!
 
 
 ### EMBEDDING

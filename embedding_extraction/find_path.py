@@ -27,7 +27,8 @@ def embed(model, input_texts, options):
 
 
 def calc_distance_cosine(target, neighbors):
-    """Calculate the cosine distance between given embeddings and the given target.
+    """
+    Calculate the cosine distance between given embeddings and the given target.
     Return the indices and distances, sorted from closest to furthest.
     """
     distances = [np.dot(target, n) for n in neighbors]
@@ -39,7 +40,8 @@ def calc_distance_cosine(target, neighbors):
 
 
 def calc_distance_euclidean(target, neighbors):
-    """Calculate the euclidean distance between given embeddings and the given target.
+    """
+    Calculate the euclidean distance between given embeddings and the given target.
     Return the indices and distances, sorted from closest to furthest.
     """
     distances = [eucdistance.euclidean(target, n) for n in neighbors]
@@ -51,7 +53,8 @@ def calc_distance_euclidean(target, neighbors):
 
 
 def get_NN(index, db, current_query, target_query, n_nn=10, debug=False):
-    """Get nearest neighbors (indices, distances and values) of current query, organized
+    """
+    Get nearest neighbors (indices, distances and values) of current query, organized
     in the order of closeness to target.
     """
     D, I = index.search(current_query, n_nn + 1)  # +1 for itself
@@ -241,12 +244,13 @@ def straight_pathing(options, start_text=None, target_text=None):
         # print(db[str(indices[0])]["text"])
     print(found_d)
     print(found_i)
-    plot_name = f"distance_{options.metric}.png"
+    plot_name = f"/scratch/project_462000883/amanda/embedding-odysseia/plots/distance_{options.metric}.png"
     plot_distance_over_steps(found_d, filename=plot_name, section_labels=found_i)
 
 
 def plot_distance_over_steps(y_values, filename="distance_plot.png", section_labels=None):
-    """Plot a distance-over-steps line chart from the provided y_values, with optional color segmentation
+    """
+    Plot a distance-over-steps line chart from the provided y_values, with optional color segmentation
     based on section_labels, and saves the plot as a PNG file.
 
     y_values (list of float): List of distance values.
