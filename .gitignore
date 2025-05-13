@@ -15,3 +15,6 @@ filled-indexers
 embedded-data
 jobs
 plots
+*.hf
+*.csv
+*.png
