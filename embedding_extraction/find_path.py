@@ -4,6 +4,7 @@ from sqlitedict import SqliteDict
 from sentence_transformers import SentenceTransformer
 from jsonargparse import ArgumentParser
 import torch
+import os
 import numpy as np
 from scipy.spatial import distance as eucdistance
 # distance.euclidean([1, 0, 0], [0, 1, 0]) == 1.41
@@ -244,7 +245,12 @@ def straight_pathing(options, start_text=None, target_text=None):
         # print(db[str(indices[0])]["text"])
     print(found_d)
     print(found_i)
-    plot_name = f"/scratch/project_462000883/amanda/embedding-odysseia/plots/distance_{options.metric}.png"
+    plot_path = f"/scratch/project_462000883/amanda/embedding-odysseia/plots/{options.save_plots}/"
+    os.makedirs(plot_path, exist_ok=True)
+    plot_name = plot_path+f"distance_{options.metric}.png"
+    prompt_file_name = plot_path+"prompts.txt"
+    with open(prompt_file_name, "w") as f:
+        f.write(f"--start={options.start}\n--target={options.target}\n")
     plot_distance_over_steps(found_d, filename=plot_name, section_labels=found_i)
 
 
@@ -299,6 +305,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="e5", help="Model name")
     parser.add_argument("--task", default="STS", choices=["STS", "Summarization", "BitextMining", "Retrieval"],
                         help="Task (==which query to use)")
+    parser.add_argument('--save_plots', type=str)
     parser.add_argument("--n_nn", type=int, default=100, help="number of nearest neighbors")
     parser.add_argument("--n_probe", type=int, default=64, help="in IVFPQ, how many neighboring cells to search")
     parser.add_argument("--metric", choices=["euclidean", "cosine"], default="cosine")
