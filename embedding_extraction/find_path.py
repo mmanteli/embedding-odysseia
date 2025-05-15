@@ -52,6 +52,13 @@ def calc_distance_euclidean(target, neighbors):
     # print(f"out of them, the order of the indices is \n{sorted_indices} \nDistances \n{sorted_distances}")
     return sorted_indices, sorted_distances
 
+def get_distance_function(metric):
+    """Wrap distance calculation, return correct distance funtion."""
+    if metric=="cosine":
+        return calc_distance_cosine
+    if metric=="euclidean":
+        return calc_distance_euclidean
+    raise AttributeError
 
 def get_NN(index, db, current_query, target_query, n_nn=10, debug=False):
     """
@@ -322,7 +329,8 @@ if __name__ == "__main__":
     assert bool(options.curved) != bool(options.straight), "Give only one task (--curved or --straight)"
     print(options, flush=True)
     # metric re-mapping: select distance function and set a limit for "smallest possible value" of it
-    calc_distance = calc_distance_cosine if options.metric == "cosine" else calc_distance_euclidean
+    calc_distance = get_distance_function(options.metric)
+    #calc_distance_cosine if options.metric == "cosine" else calc_distance_euclidean
     dist_min_limit = 1 if options.metric == "cosine" else 0  # cosine==1 <=> close, eucl==0 <=> close
 
     kwargs = {k: v for k, v in [("start_text", options.start), ("target_text", options.target)] if v is not None}
