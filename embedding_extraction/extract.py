@@ -29,34 +29,8 @@ set_verbosity_error()                                        #prevent the librar
 
 #--------------------------------- Chuncking of long documents --------------------------------- #
 
-def text2dataset(line, chunk_size):
-    """
-    Turn a text into a dataset of text chunks.
-    """
-    txt = line["text"]
-    chunks=[]
-    offsets=[]
-    for chunk_offset in range(0,len(txt),chunk_size):
-        chunks.append(txt[chunk_offset:chunk_offset+chunk_size])
-        offsets.append(chunk_offset)
-    return datasets.Dataset.from_dict({"text":chunks,
-                                       "id":[line["id"]]*len(chunks),
-                                       "register": [line["register"]]*len(chunks),
-                                       "offset": offsets})
 
-def text2chunks_old(line, chunk_size):
-    """
-    Turn a text into chunked segments.
-    """
-    txt = line["text"]
-    chunks=[]
-    offsets=[]
-    for chunk_offset in range(0,len(txt),chunk_size):
-        chunks.append(txt[chunk_offset:chunk_offset+chunk_size])
-        offsets.append(chunk_offset)
-    return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
-
-def text2sentences(line, chunk_size):
+def text2sentences(line, chunk_size, overlap=None):
     """
     Turn a text into segments.
     """
@@ -149,7 +123,7 @@ def text2wordchunks(line, max_length, overlap):
     return chunks, [line["id"]]*len(chunks), [line["register"]]*len(chunks), offsets
 
 
-def text2tokenchunks(line, tokenizer, max_length, overlap):
+def text2tokenchunks(line, max_length, overlap, tokenizer):
     """
     Turn a text into chunked segments wrt token count, with defined overlap.
     """
@@ -266,35 +240,26 @@ def transform(f, options, f_train=False):
     ids = []
     labels = []
     offsets = []
+    chunk_fn = {"tokens": "", # these defined below
+                "truncate": "",
+                "words": text2wordchunks,
+                "sentences": text2sentences,
+                "chars": text2chunks}[options.split_by]
     for idx, line in enumerate(sys.stdin):
-        #if options.debug: print(f"In document {idx}", flush=True)
         try:
             j = json.loads(line)
-            if options.split_by == "sentences":
-                assert options.chunk_size, "Give --chunk_size with --split_by=sentences"
-                chunk, id_, label, offset  = text2sentences(j, options.chunk_size)
-                texts.extend(chunk)
-                ids.extend(id_)
-                labels.extend(label)
-                offsets.extend(offset)
-            elif options.split_by == "chars":
-                assert options.chunk_size, "Give --chunk_size with --split_by=chars"
-                chunk, id_, label, offset  = text2chunks(j, options.chunk_size, options.overlap)
+            if options.split_byin ["sentences", "chars", "words"]:
+                assert options.chunk_size, "Give --chunk_size with --split_by != truncate."
+                chunk, id_, label, offset  = chunk_fn(j, options.chunk_size, options.overlap)
                 texts.extend(chunk)
                 ids.extend(id_)
                 labels.extend(label)
                 offsets.extend(offset)
             elif options.split_by == "tokens":
-                max_length = options.chunk_size if options.chunk_size else tokenizer.model_max_length - 2 # room for special tokens
+                max_length = options.chunk_size if options.chunk_size else tokenizer.model_max_length - 2
+                # -2: room for special tokens
                 overlap = options.overlap if options.overlap else int(max_length/2)-1
                 chunk, id_, label, offset  = text2tokenchunks(j, tokenizer, max_length, overlap)
-                texts.extend(chunk)
-                ids.extend(id_)
-                labels.extend(label)
-                offsets.extend(offset)
-            elif options.split_by == "words":
-                assert options.chunk_size, "Give --chunk_size with --split_by=words"
-                chunk, id_, label, offset  = text2wordchunks(j, options.chunk_size, options.overlap)
                 texts.extend(chunk)
                 ids.extend(id_)
                 labels.extend(label)
@@ -342,7 +307,7 @@ if __name__=="__main__":
                         help="How many files are handled the same time", default = 500)
     parser.add_argument('--model_batch_size', type=int, default=32)  # tested to be the fastest out of 32 64 128
     parser.add_argument('--split_by', default="sentences",
-                        choices=["tokens", "sentences", "chars", "words", "truncate"], 
+                        choices=["tokens", "sentences", "chars", "words", "truncate"],
                         help='What to use for splitting too long texts, truncate=nothing')
     parser.add_argument('--chunk_size', type=int, help="How many units (tokens, words, chars) per batch. For sentences,\
                         splits up by char, for tokens, automatically set to model_max_len -2", default = None)

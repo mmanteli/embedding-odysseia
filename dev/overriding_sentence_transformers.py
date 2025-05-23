@@ -67,14 +67,29 @@ input_texts = ["Hello World! I love you!", "Sad to see you go"]
 #                        prompt=get_task_def_by_task_name_and_type('STS'),
 #                        convert_to_tensor=True,
 #                        normalize_embeddings=False)
-print("\nUsing pipeline with sentence_embedding")
-emb_from_sentence_transformer = sentence_model.encode(input_texts,
-                        output_value=None,
+print("\nUsing pipeline with sentence_embedding, both sentences in batch")
+sentence_emb_from_sentence_transformer = sentence_model.encode(input_texts,
+                        output_value="sentence_embedding",
                         prompt=get_task_def_by_task_name_and_type('STS'),
                         convert_to_tensor=True,
                         normalize_embeddings=False)
-print(emb_from_sentence_transformer)
-sentence_emb_from_sentence_transformer = emb_from_sentence_transformer["sentence_embedding"]
+
+sent_emb_one_by_one = []
+for t in input_texts:
+    print("\nUsing pipeline with sentence_embedding, one sentence at a time")
+    print(t)
+    a = sentence_model.encode(t,
+                            output_value="sentence_embedding",
+                            prompt=get_task_def_by_task_name_and_type('STS'),
+                            convert_to_tensor=True,
+                            normalize_embeddings=False)
+    sent_emb_one_by_one.append(a)
+
+print("RESULT COMPARISON")
+print(sentence_emb_from_sentence_transformer)
+print(sent_emb_one_by_one)
+exit()
+
 # BASE HF MODEL
 
 # modify input to have the query
@@ -94,6 +109,8 @@ def hook_fn(module, input, output):
 hook = hf_model.encoder.layer[-1].attention.register_forward_hook(hook_fn)
 
 inputs = tokenizer(input_texts, return_tensors="pt", padding=True, truncation=True).to(hf_model.device)
+
+print(f'Inside the script: tokenized = {inputs}')
 #print(f'Inside script:\ntokenized = {inputs}')
 #print("INPUTS MATCH, see above")
 with torch.no_grad():
@@ -141,6 +158,9 @@ def normalize(features):
 sentence_emb_base_model_with_gpt_code = gpt_pool(token_embeddings, attention_mask)
 sentence_emb_base_mode_with_STF_pool = STF_pool(token_embeddings, attention_mask)
 
+
+print("Token embeddings from base model")
+print(token_embeddings)
 print("Un-normalized output form base model")
 print(sentence_emb_base_mode_with_STF_pool)
 
