@@ -27,11 +27,24 @@ def embed(model, input_texts, options):
     )
 
 
+def normalize_vectors(vectors):
+    """Normalize a numpy matrix w.r.t rows."""
+    if vectors.dtype is not float:
+        vectors = vectors.astype('float64')
+    magnitude = np.sqrt(np.einsum('...i,...i', vectors, vectors))
+    return vectors / magnitude.reshape(-1,1)
+
+
 def calc_distance_cosine(target, neighbors):
     """
     Calculate the cosine distance between given embeddings and the given target.
     Return the indices and distances, sorted from closest to furthest.
     """
+    #print(len(target), len(neighbors))
+    target = normalize_vectors(np.array(target)).reshape(-1)
+    neighbors = normalize_vectors(np.array(neighbors))
+    #print(target.shape)
+    #print(neighbors.shape)
     distances = [np.dot(target, n) for n in neighbors]
     # print(f'Cos Distances are {distances}')
     sorted_indices = np.argsort(distances)[::-1]  # for cosine, these need to be reversed

@@ -48,12 +48,12 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="e5", help="Model name")
     parser.add_argument("--task", default="STS", choices=["STS", "Summarization", "BitextMining", "Retrieval"],
                         help="Task (==which query to use)")
-    parser.add_argument('--save_plots', '--save', type=str)
+    parser.add_argument('--save_plots', '--save', type=str, default="testi.png")
     parser.add_argument("--metric", choices=["euclidean", "cosine"], default="cosine")
     parser.add_argument("--filled_indexer")
     parser.add_argument("--n_probe", type=int, default=64, help="in IVFPQ, how many neighboring cells to search")
     parser.add_argument("--database")
-    parser.add_argument("--n_steps", default=100)
+    parser.add_argument("--n_steps", default=10)
     parser.add_argument("--n_lines", default=100)
     parser.add_argument("--start", type=str)
     parser.add_argument("--target", type=str)
@@ -99,13 +99,14 @@ if __name__ == "__main__":
     print(distance)
 
     np.random.seed(0)
-    random_translation_vec = np.random.random((options.n_lines, options.n_steps, target_query.shape[0])) - 0.5
-    random_rotation_vec = 2*np.pi*np.random.random((options.n_lines, options.n_steps,target_query.shape[0]))
+    random_translation_vec = (np.random.random((options.n_lines, options.n_steps, target_query.shape[0]))-0.5)*0.01
+    random_rotation_vec = 2*np.pi*np.random.random((options.n_lines, options.n_steps,target_query.shape[0]))*0.000001
     print(random_translation_vec.shape)
 
     final_ind = []
     final_dist = []
     final_means = []
+    final_std = []
     for tra, rot in tqdm(zip(random_translation_vec, random_rotation_vec)):
         assert tra.shape == line.shape, f"translation vec {tra.shape}, line {line.shape}"
         new_line = transform_line(line, tra, rot)
@@ -124,20 +125,24 @@ if __name__ == "__main__":
             )  # n_nn=0 because we accept values that are the same as input
             found_d.append(distances[0])
             found_i.append(indices[0])
+        print(found_d)
         final_ind.append(found_i)
         final_dist.append(found_d)
-        final_means.append(np.mean(distances))
+        final_means.append(np.mean(found_d))
+        final_std.append(np.std(found_d))
 
     y_values = final_means
     x_values = range(options.n_steps)
-    plt.plot(x_values, y_values, marker="o", linestyle="-", color="blue")
+    #yerr = final_std
+    plt.plot(x_values, y_values, marker="o", linestyle="-", color="blue")#, yerr=yerr
     plt.title("Distance Over Steps")
     plt.xlabel("step")
     plt.ylabel("distance")
     plt.grid(True)
     plt.tight_layout()
 
-    os.makedirs(os.path.dirname(options.save_plots), exist_ok=True)
+    if "/" in options.save_plots:
+        os.makedirs(os.path.dirname(options.save_plots), exist_ok=True)
     plt.savefig(options.save_plots, dpi=300)
 
 
