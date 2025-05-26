@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -A project_462000883
+#SBATCH -A project_2002026
 #SBATCH -p debug
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
@@ -11,13 +11,10 @@
 #SBATCH -o logs/%x-%j.out
 
 
-module purge
-module use /appl/local/csc/modulefiles/
-module load pytorch/2.4
-export PYTHONPATH=/scratch/project_462000883/amanda/embedding-odysseia/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
-export HF_HOME=/scratch/project_462000883/hf_cache
+module load pytorch
+export HF_HOME=/scratch/${project}/amanda/hf_cache
 metric=$1
-jobname="full-docs-07-05-25"
+jobname=""
 
 full_docs_start=""
 full_docs_target=""
@@ -27,8 +24,8 @@ srun python embedding_extraction/find_path.py --straight \
                         --model="e5" \
                         --metric=$metric \
                         --save_plots=${jobname}_3 \
-                        --filled_indexer="/scratch/project_462000883/amanda/embedding-odysseia/jobs/${jobname}/filled-indexers/IVFPQ.index" \
-                        --database="/scratch/project_462000883/amanda/embedding-odysseia/jobs/${jobname}/filled-indexers/IVFPQ.sqlite"
+                        --filled_indexer="/scratch/project_2002026/amanda/from-lumi/jobs${jobname}/filled-indexers/IVFPQ.index" \
+                        --database="/scratch/project_2002026/amanda/from-lumi/jobs/${jobname}/filled-indexers/IVFPQ.sqlite"
 
 
 # In this tutorial we will learn about how to print Data in Tabular Format in Python

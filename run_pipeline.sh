@@ -1,11 +1,7 @@
 #!/bin/bash
-project="project_462000883"
+project="project_2002026"
 
-module_setup="module purge
-module use /appl/local/csc/modulefiles/
-module load pytorch/2.4
-export PYTHONPATH=/scratch/project_462000883/amanda/embedding-odysseia/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
-export HF_HOME=/scratch/project_462000883/hf_cache"
+module_setup="module load pytorch && export HF_HOME=/scratch/${project}/amanda/hf_cache"
 
 
 # This script used to run embedding, indexing and a sanity check in one, to make argument handling consistent.
@@ -24,10 +20,11 @@ export HF_HOME=/scratch/project_462000883/hf_cache"
 
 # MOST IMPORTANT PARAMETERS
 # this will affect saving paths
-jobname="sentences-$(date +%d-%m-%y)" # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
+split_by="truncate"
+jobname="${split_by}-$(date +%d-%m-%y)" # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
 # this will be piped in to extract.py, can be path, then all .jsonl's in the path will be piped in parallel jobs.
 #data_to_embed="/scratch/project_462000883/amanda/register-data/"   # make sure to have "/" in the end
-pf="/scratch/project_462000353/HPLT-REGISTERS/samples-150B-by-register-xlmrl/original_corrected"
+pf=""
 data_to_embed="${pf}/eng_Latn_dtp.jsonl \
                 ${pf}/eng_Latn_OP.jsonl \
                 ${pf}/eng_Latn_HI-IN.jsonl \
@@ -37,7 +34,7 @@ data_to_embed="${pf}/eng_Latn_dtp.jsonl \
                 ${pf}/eng_Latn_ID.jsonl \
                 ${pf}/eng_Latn_NA.jsonl \
                 ${pf}/eng_Latn_SP.jsonl"
-path_prefix_for_results="/scratch/project_462000883/amanda/embedding-odysseia/jobs/${jobname}"
+path_prefix_for_results="/scratch/${project_2002026}/amanda/from-lumi/jobs/${jobname}"
 
 # what action to take
 action=$1
@@ -59,7 +56,7 @@ temporary_training_set="${path_prefix_for_results}/training-data/" # location fo
 data_suffix=""  # suffix for saving the data. Applied to both above!! See loop in "embed" below, where we assing this !!!!
 threshold=0.1   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
 # faissify.py will complain if it is too little, and the indexer will not work. You don't have to re-run the embedding step, faissify.py can create its own training data if temporary training set does not exist.
-split_by="sentences"   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
+split_by=$split_by   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
 chunk_size=2500  # this is the number of units chosen, for example if sentence is more than 2500 chars long, this can be used to truncate. 2500 char ~= 512 tokens
 
 # indexing with faiss + sanity check related options
