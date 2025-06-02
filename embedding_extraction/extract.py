@@ -1,6 +1,6 @@
 import torch
 from jsonargparse import ArgumentParser
-from  transformers import AutoTokenizer
+#from  transformers import AutoTokenizer
 import sys
 import json
 import traceback
@@ -13,9 +13,9 @@ import nltk
 #nltk.download('punkt')
 #nltk.download('punkt_tab')
 try:
-    from model_utils import model_name_dict, get_all_prompts
+    from model_utils import model_name_dict, get_query #get_all_prompts,
 except ImportError:
-    from embedding_extraction.model_utils import model_name_dict, get_all_prompts
+    from embedding_extraction.model_utils import model_name_dict, get_query #get_all_prompts,
 
 from datasets.utils.logging import disable_progress_bar      #prevent the libraries from displaying a progress bar
 disable_progress_bar()
@@ -208,6 +208,9 @@ def embed(model, input_texts, options):
     #input_texts = [get_query(options.task, t) for t in texts]
     #embedded_texts = model.encode(input_texts, convert_to_tensor=False, normalize_embeddings=False)
     #input_texts = texts
+    if options.model in ["jina", "jinaai/jina-embeddings-v3"]:
+        return model.encode(input_texts, task="text-matching")   #jina has different prompting
+    input_texts = [get_query(options.task, t) for t in input_texts]    # add query
     return model.encode(input_texts,
                         convert_to_tensor=False,
                         normalize_embeddings=False,
@@ -226,15 +229,16 @@ def transform(f, options, f_train=False):
     # find model with alias or full name
     model = SentenceTransformer(
                                 model_name_dict.get(options.model, options.model),
-                                prompts=get_all_prompts(),
-                                default_prompt_name=options.task,
+                                #prompts=get_all_prompts(),
+                                #default_prompt_name=options.task,   # models trained with the prompt in the encode call
                                 trust_remote_code=True,
                                 device = "cuda:0" if torch.cuda.is_available() else "cpu",
+                                model_kwargs={"attn_implementation": "eager"},   #this needed, else values with different batches won't match
                                 )
     if options.model in ["qwen","Alibaba-NLP/gte-Qwen2-7B-instruct"]:
         model.max_seq_length = 8192
     if options.split_by == "tokens":
-        tokenizer = AutoTokenizer.from_pretrained(model_name_dict.get(options.model, options.model))
+        tokenizer = model.tokenizer #AutoTokenizer.from_pretrained(model_name_dict.get(options.model, options.model))
 
     texts = []
     ids = []
@@ -248,7 +252,7 @@ def transform(f, options, f_train=False):
     for idx, line in enumerate(sys.stdin):
         try:
             j = json.loads(line)
-            if options.split_byin ["sentences", "chars", "words"]:
+            if options.split_by in ["sentences", "chars", "words"]:
                 assert options.chunk_size, "Give --chunk_size with --split_by != truncate."
                 chunk, id_, label, offset  = chunk_fn(j, options.chunk_size, options.overlap)
                 texts.extend(chunk)
@@ -306,14 +310,14 @@ if __name__=="__main__":
     parser.add_argument('--batch_size', '--batchsize', type=int,
                         help="How many files are handled the same time", default = 500)
     parser.add_argument('--model_batch_size', type=int, default=32)  # tested to be the fastest out of 32 64 128
-    parser.add_argument('--split_by', default="sentences",
+    parser.add_argument('--split_by', default="truncate",
                         choices=["tokens", "sentences", "chars", "words", "truncate"],
                         help='What to use for splitting too long texts, truncate=nothing')
     parser.add_argument('--chunk_size', type=int, help="How many units (tokens, words, chars) per batch. For sentences,\
                         splits up by char, for tokens, automatically set to model_max_len -2", default = None)
     parser.add_argument('--overlap', '--context_overlap', type=int, help="How much overlap per segment \
                         (None = model_max_len/2)", default = None)
-    parser.add_argument('--temporary_training_set', type=str, default=None,
+    parser.add_argument('--temporary_training_set', type=str, default="test_train.pkl",
                         help='Sample training data to temporary .pkl')
     parser.add_argument('--threshold', type=float, default=0.1, help='Sample fraction for temp training data')
     parser.add_argument('--debug', type=bool, default=False, help="Verbosity etc.")
