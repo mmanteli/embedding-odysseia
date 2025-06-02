@@ -19,6 +19,7 @@ class TestSentenceTransformerGPU(unittest.TestCase):
                     #default_prompt_name="STS",
                     trust_remote_code=True,
                     device = "cuda:0",
+                    model_kwargs={"attn_implementation": "eager"},
                     )
         self.model.eval()
         self.input_texts = self.input_arg
@@ -51,6 +52,7 @@ class TestSentenceTransformerCPU(unittest.TestCase):
                     #default_prompt_name="STS",
                     trust_remote_code=True,
                     device = "cpu",
+                    model_kwargs={"attn_implementation": "eager"},
                     )
         self.model.eval()
         self.input_texts = self.input_arg
