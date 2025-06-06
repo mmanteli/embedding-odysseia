@@ -18,3 +18,7 @@ plots
 *.hf
 *.csv
 *.png
+hidden-states/data/*.jsonl
+jobs_e5
+hidden-states/dev_data
+testing
