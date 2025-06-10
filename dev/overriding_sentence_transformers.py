@@ -2,6 +2,7 @@ from sentence_transformers import SentenceTransformer
 import torch
 from transformers import AutoTokenizer, AutoConfig
 import torch.nn.functional as F
+from scipy.spatial import distance as eucdistance
 
 model_name_dict = {"e5": "intfloat/multilingual-e5-large-instruct",
                    "qwen" : "Alibaba-NLP/gte-Qwen2-7B-instruct",
@@ -41,6 +42,7 @@ print("heads:", config.num_attention_heads)
 # original sentence-transformer pipeline model
 sentence_model = SentenceTransformer(
                     model_name_dict["e5"],
+                    output_value="token_embeddings",
                     prompts=get_all_prompts(),
                     default_prompt_name="STS",
                     trust_remote_code=True,
@@ -58,7 +60,7 @@ hf_model.eval()
 
 
 
-input_texts = ["Hello World! I love you!", "Sad to see you go"]
+input_texts = ["Hello World! I love you! I'm gonna miss you so much!! We will see in the future again, right?", "Sad to see you go"]
 
 #print("\nUsing pipeline with token_embeddings")
 # SENTENCE TRANSFORMER
@@ -67,7 +69,7 @@ input_texts = ["Hello World! I love you!", "Sad to see you go"]
 #                        prompt=get_task_def_by_task_name_and_type('STS'),
 #                        convert_to_tensor=True,
 #                        normalize_embeddings=False)
-print("\nUsing pipeline with sentence_embedding, both sentences in batch")
+#print("\nUsing pipeline with sentence_embedding, both sentences in batch")
 sentence_emb_from_sentence_transformer = sentence_model.encode(input_texts,
                         output_value="sentence_embedding",
                         prompt=get_task_def_by_task_name_and_type('STS'),
@@ -76,8 +78,8 @@ sentence_emb_from_sentence_transformer = sentence_model.encode(input_texts,
 
 sent_emb_one_by_one = []
 for t in input_texts:
-    print("\nUsing pipeline with sentence_embedding, one sentence at a time")
-    print(t)
+    #print("\nUsing pipeline with sentence_embedding, one sentence at a time")
+    #print(t)
     a = sentence_model.encode(t,
                             output_value="sentence_embedding",
                             prompt=get_task_def_by_task_name_and_type('STS'),
@@ -86,8 +88,13 @@ for t in input_texts:
     sent_emb_one_by_one.append(a)
 
 print("RESULT COMPARISON")
-print(sentence_emb_from_sentence_transformer)
-print(sent_emb_one_by_one)
+#print(sentence_emb_from_sentence_transformer)
+#print(sent_emb_one_by_one)
+
+
+for s1, s2 in zip(sent_emb_one_by_one, sentence_emb_from_sentence_transformer):
+    print(f'Embeddings are the same: {torch.allclose(s1, s2,atol=1e-4)}')
+    print(f'Distance is {eucdistance.euclidean(s1.cpu(), s2.cpu())}')
 exit()
 
 # BASE HF MODEL

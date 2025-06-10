@@ -20,8 +20,9 @@ module_setup="module load pytorch && export HF_HOME=/scratch/${project}/amanda/h
 
 # MOST IMPORTANT PARAMETERS
 # this will affect saving paths
-split_by="truncate"
-jobname="${split_by}-$(date +%d-%m-%y)" # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
+jobname="full-docs-02-06-25" # sentences-$(date +%d-%m-%y) # you can for example add this-> $(date +%d-%m-%y) to get a date in the name, if everything is run on the same day
+split_by="truncate"   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
+
 # this will be piped in to extract.py, can be path, then all .jsonl's in the path will be piped in parallel jobs.
 #data_to_embed="/scratch/project_462000883/amanda/register-data/"   # make sure to have "/" in the end
 pf=""
@@ -54,9 +55,8 @@ task="STS"
 data="${path_prefix_for_results}/embedded-data/${model}/" # location to save the embeddings, and read in indexing
 temporary_training_set="${path_prefix_for_results}/training-data/" # location for temp training data files, read in indexing, so that we dont have to go through the data twice
 data_suffix=""  # suffix for saving the data. Applied to both above!! See loop in "embed" below, where we assing this !!!!
-threshold=0.1   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
+threshold=0.05   # which fraction of data is selected for training the indexer, usually 0.1 is more than enough. 
 # faissify.py will complain if it is too little, and the indexer will not work. You don't have to re-run the embedding step, faissify.py can create its own training data if temporary training set does not exist.
-split_by=$split_by   # this is what to use to divide long documents to chunks. Truncate: none, just beginning of file, sentences: find sentences using nltk, words/chars: select number of units.
 chunk_size=2500  # this is the number of units chosen, for example if sentence is more than 2500 chars long, this can be used to truncate. 2500 char ~= 512 tokens
 
 # indexing with faiss + sanity check related options
@@ -66,7 +66,7 @@ trained_indexer="${path_prefix_for_results}/trained-indexers/${base_indexer}.ind
 filled_indexer="${path_prefix_for_results}/filled-indexers/${base_indexer}.index" # save filled indexer here
 database="${path_prefix_for_results}/filled-indexers/${base_indexer}.sqlite" # save corresponding sql database here
 # Verbosity
-debug="True"
+debug="False"
 
 
 
@@ -89,7 +89,7 @@ case $action in
                 sbatch --job-name=embed \
                     --account=$project \
                     --output=${path_prefix_for_results}/logs/%x-%j.out \
-                    --time=02:30:00 \
+                    --time=03:00:00 \
                     --partition=small-g \
                     --nodes=1 \
                     --ntasks=1 \
@@ -129,7 +129,7 @@ EOF
             sbatch --job-name=embed \
                 --account=$project \
                 --output=${path_prefix_for_results}/logs/%x-%j.out \
-                --time=02:30:00 \
+                --time=03:00:00 \
                 --partition=small-g \
                 --nodes=1 \
                 --ntasks=1 \
@@ -170,7 +170,7 @@ EOF
                 sbatch --job-name=embed \
                     --account=$project \
                     --output=${path_prefix_for_results}/logs/%x-%j.out \
-                    --time=02:30:00 \
+                    --time=03:00:00 \
                     --partition=small-g \
                     --nodes=1 \
                     --ntasks=1 \
@@ -204,12 +204,12 @@ EOF
         sbatch --job-name=index \
                --account=$project \
                --output=${path_prefix_for_results}/logs/%x-%j.out \
-               --time=02:30:00 \
+               --time=06:00:00 \
                --partition=small \
                --nodes=1 \
                --ntasks=1 \
-               --cpus-per-task=4 \
-               --mem=20G <<EOF
+               --cpus-per-task=10 \
+               --mem=40G <<EOF
 #!/bin/bash
 echo "Starting: \$(date)"
 echo "Running indexing..."

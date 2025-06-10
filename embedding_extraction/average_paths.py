@@ -17,7 +17,8 @@ except ImportError:
 def transform_line(line, translation, rotation):
     """Translate and rotate a line by given vectors."""
     # rotate:
-    new_line = [2*height+np.sin(angle) for height,angle in zip(line, rotation)]
+    rot = np.linspace(-np.sin(0.25*rotation), np.sin(0.25*rotation), len(line))
+    new_line = line + rot
     # translate
     return new_line + translation
 
@@ -41,6 +42,28 @@ def get_NN(index, db, current_query, target_query, n_nn=10, debug=False):
         ).all(), "Sorting is wacky I'm afraid, correct this."
     return I[0][sorted_ind], sorted_dist, np.array(neighbors)[sorted_ind]
 
+def find_closest_distances_to_a_line(line, index, options):
+    found_d = []
+    found_i = []
+    for point in line:
+        point=point.reshape((1, -1))
+        indices, distances, points = get_NN(
+            index,
+            db,
+            point,
+            point,
+            n_nn=0,
+            debug=options.debug,
+        )  # n_nn=0 because we accept values that are the same as input
+        found_d.append(distances[0])
+        found_i.append(indices[0])
+    return found_d, found_i
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
@@ -53,8 +76,8 @@ if __name__ == "__main__":
     parser.add_argument("--filled_indexer")
     parser.add_argument("--n_probe", type=int, default=64, help="in IVFPQ, how many neighboring cells to search")
     parser.add_argument("--database")
-    parser.add_argument("--n_steps", default=10)
-    parser.add_argument("--n_lines", default=100)
+    parser.add_argument("--n_steps", default=40)
+    parser.add_argument("--n_lines", default=10)
     parser.add_argument("--start", type=str)
     parser.add_argument("--target", type=str)
     parser.add_argument("--model_batch_size", type=int, default=32)  # tested to be the fastest out of 32 64 128
@@ -96,45 +119,38 @@ if __name__ == "__main__":
 
     line = straight_path(start_query, target_query, n=options.n_steps)
     _, distance = calc_distance(target_query, [start_query])
-    print(distance)
+    
+    
+    # get distance for this example:
+    d_original, i_original = find_closest_distances_to_a_line(line, index, options)
 
+    
     np.random.seed(0)
-    random_translation_vec = (np.random.random((options.n_lines, options.n_steps, target_query.shape[0]))-0.5)*0.01
-    random_rotation_vec = 2*np.pi*np.random.random((options.n_lines, options.n_steps,target_query.shape[0]))*0.000001
-    print(random_translation_vec.shape)
+    random_translation_vec = (np.random.random((options.n_lines, start_query.shape[0]))-0.5)*0.01
+    random_rotation_vec = (2*np.pi*(np.random.random((options.n_lines, start_query.shape[0]))-0.5))*0.01
+    #print(random_translation_vec.shape)
 
     final_ind = []
     final_dist = []
-    final_means = []
-    final_std = []
     for tra, rot in tqdm(zip(random_translation_vec, random_rotation_vec)):
-        assert tra.shape == line.shape, f"translation vec {tra.shape}, line {line.shape}"
         new_line = transform_line(line, tra, rot)
-        assert new_line.shape == line.shape, f"Transformation fucked things up, new line shape = {new_line.shape}"
-        found_d = []
-        found_i = []
-        for p_ in new_line:
-            p=p_.reshape((1, -1))
-            indices, distances, points = get_NN(
-                index,
-                db,
-                p,
-                p,
-                n_nn=0,
-                debug=options.debug,
-            )  # n_nn=0 because we accept values that are the same as input
-            found_d.append(distances[0])
-            found_i.append(indices[0])
-        print(found_d)
+        assert new_line.shape == line.shape, f"Transformation messed things up, new line shape = {new_line.shape}"
+        found_d, found_i = find_closest_distances_to_a_line(new_line, index, options)
         final_ind.append(found_i)
         final_dist.append(found_d)
-        final_means.append(np.mean(found_d))
-        final_std.append(np.std(found_d))
+    final_dist = np.array(final_dist)
+    final_ind = np.array(final_ind)
+    print(final_dist.shape)
+    print(final_ind.shape)
+    final_mean = np.mean(final_dist, axis = 0)
+    final_std = np.std(final_dist, axis= 0)
+    print(final_mean.shape)
 
-    y_values = final_means
     x_values = range(options.n_steps)
-    #yerr = final_std
-    plt.plot(x_values, y_values, marker="o", linestyle="-", color="blue")#, yerr=yerr
+    y_values = final_mean
+    yerr = final_std
+    plt.errorbar(x_values, y_values, marker="o", linestyle="-", color="blue", yerr=yerr)
+    plt.plot(x_values, np.array(d_original), color="red")
     plt.title("Distance Over Steps")
     plt.xlabel("step")
     plt.ylabel("distance")
