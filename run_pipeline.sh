@@ -1,7 +1,7 @@
 #!/bin/bash
 project="project_2002026"
 
-module_setup="module load pytorch && export HF_HOME=/scratch/${project}/amanda/hf_cache"
+module_setup="module load pytorch && export HF_HOME=/scratch/${project}/amanda/hf_cache && source .venv/bin/activate"
 
 
 # This script used to run embedding, indexing and a sanity check in one, to make argument handling consistent.

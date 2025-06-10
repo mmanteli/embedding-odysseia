@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -A project_462000883
+#SBATCH -A project_2002026
 #SBATCH -p debug
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
@@ -11,11 +11,10 @@
 #SBATCH -o logs/%x-%j.out
 
 
-module purge
-module use /appl/local/csc/modulefiles/
-module load pytorch/2.4
-export PYTHONPATH=/scratch/project_462000883/amanda/embedding-odysseia/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
-export HF_HOME=/scratch/project_462000883/hf_cache
+module load pytorch
+project="project_2002026"
+export HF_HOME=/scratch/${project}/amanda/hf_cache
+source .venv/bin/activate
 metric="euclidean"
 jobname="full-docs-02-06-25"
 

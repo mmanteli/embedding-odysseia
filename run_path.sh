@@ -12,7 +12,9 @@
 
 
 module load pytorch
+project="project_2002026"
 export HF_HOME=/scratch/${project}/amanda/hf_cache
+source .venv/bin/activate
 metric=$1
 jobname=""
 
