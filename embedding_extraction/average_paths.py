@@ -77,7 +77,9 @@ if __name__ == "__main__":
     parser.add_argument("--n_probe", type=int, default=64, help="in IVFPQ, how many neighboring cells to search")
     parser.add_argument("--database")
     parser.add_argument("--n_steps", default=40)
-    parser.add_argument("--n_lines", default=10)
+    parser.add_argument("--n_lines", default=20)
+    parser.add_argument("--alpha", type=float, default=0.01)
+    parser.add_argument("--beta",type=float, default=0.01)
     parser.add_argument("--start", type=str)
     parser.add_argument("--target", type=str)
     parser.add_argument("--model_batch_size", type=int, default=32)  # tested to be the fastest out of 32 64 128
@@ -126,8 +128,8 @@ if __name__ == "__main__":
 
     
     np.random.seed(0)
-    random_translation_vec = (np.random.random((options.n_lines, start_query.shape[0]))-0.5)*0.01
-    random_rotation_vec = (2*np.pi*(np.random.random((options.n_lines, start_query.shape[0]))-0.5))*0.01
+    random_translation_vec = (np.random.random((options.n_lines, start_query.shape[0]))-0.5)*options.beta
+    random_rotation_vec = (2*np.pi*(np.random.random((options.n_lines, start_query.shape[0]))-0.5))*options.alpha
     #print(random_translation_vec.shape)
 
     final_ind = []
