@@ -158,6 +158,9 @@ if __name__ == "__main__":
     plt.ylabel("distance")
     plt.grid(True)
     plt.tight_layout()
+    ax = plt.gca()
+    #ax.set_xlim([xmin, xmax])
+    ax.set_ylim([0.4, 1.05])
 
     if "/" in options.save_plots:
         os.makedirs(os.path.dirname(options.save_plots), exist_ok=True)

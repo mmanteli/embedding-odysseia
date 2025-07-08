@@ -74,7 +74,7 @@ def get_distance_function(metric):
         return calc_distance_euclidean
     raise AttributeError
 
-def get_head_zeros(vec, head, num_heads):
+def get_head_with_zero_mask(vec, head, num_heads):
     """Select a range of values from a vector.
     Example: input = [1,1,1,2,4,2,3,2,3,6,5,4]
     get_head(input, 1, 3)
@@ -89,7 +89,7 @@ def get_head_zeros(vec, head, num_heads):
     mask[indices_per_head*head:indices_per_head*(head+1)] = 1
     return mask*vec
 
-def get_head(vec, baseline, head, num_heads):
+def get_head_with_mask(vec, baseline, head, num_heads):
     """Select a range of values from a vector, and others from baseline.
     Example: input = [1,1,1,2,4,2,3,2,3,6,5,4], baseline = [0,0,0,0,0,0,0,0,0,0,0,1]
     get_head(input, baseline, 1, 3)
@@ -103,6 +103,12 @@ def get_head(vec, baseline, head, num_heads):
     headless = copy.deepcopy(baseline)
     headless[indices_per_head*head:indices_per_head*(head+1)] = vec[-1,indices_per_head*head:indices_per_head*(head+1)]
     return headless
+
+def get_head(vec, baseline, head, num_heads):
+    assert head < num_heads, f"given head index ({head}) must be at most {num_heads-1} for num_heads = {num_heads} ."
+    assert vec.shape[-1]%num_heads==0, f"the dimension of the vector {vec.shape[-1]} is not divisible by number of heads {num_heads}"
+    indices_per_head = int(vec.shape[-1]/num_heads)
+    return vec[-1,indices_per_head*head:indices_per_head*(head+1)], baseline[indices_per_head*head:indices_per_head*(head+1)]
 
 def get_NN(index, db, current_query, target_query, n_nn=10, debug=False):
     """
@@ -125,11 +131,15 @@ def get_NN(index, db, current_query, target_query, n_nn=10, debug=False):
     return I[0][sorted_ind], sorted_dist, np.array(neighbors)[sorted_ind]
 
 
-def calculate_head_distances(point_on_line, point_comparison, num_heads):
+def calculate_head_distances(point_on_line, point_comparison, num_heads, metric):
     head_distances = []
     for i in range(num_heads):
-        masked_by_head = get_head(point_on_line, point_comparison, i, num_heads)
-        distance = eucdistance.euclidean(masked_by_head.reshape(-1), point_comparison.reshape(-1)) # TODO TODO TODO #calc_distance(masked_by_head, [point_comparison])
+        h, h_comp = get_head(point_on_line, point_comparison, i, num_heads)
+        # DO NOT RE-NORMALIZE HERE
+        if metric == "cosine":
+            distance = np.dot(h.reshape(-1), h_comp.reshape(-1))
+        else:
+            distance = eucdistance.euclidean(h.reshape(-1), h_comp.reshape(-1))
         print(f"distance for head {i} inside calc head dist: {distance}")
         head_distances.append(distance)
     return head_distances
@@ -156,7 +166,7 @@ def find_closest_distances_to_a_line(line, index, db, options):
         closest_N_point = points[0]
         print("neighbor shape: ", closest_N_point.shape)
         print("point is: ",point)
-        found_heads_d.append(calculate_head_distances(point, closest_N_point, options.num_heads))
+        found_heads_d.append(calculate_head_distances(point, closest_N_point, options.num_heads, options.metric))
 
     return found_d, found_i, found_heads_d
 
@@ -206,12 +216,12 @@ def straight_pathing(options, start_text=None, target_text=None):
     print(found_d)
     print(found_i)
     print(found_heads)
-    plot_path = options.save_plots
+    plot_path = os.path.dirname(options.save_plots)
     os.makedirs(plot_path, exist_ok=True)
-    plot_name = plot_path+f"/head_distance_dummy_{options.metric}.html"
-    #prompt_file_name = plot_path+"prompts.txt"
-    #with open(prompt_file_name, "w") as f:
-    #    f.write(f"--start={options.start}\n--target={options.target}\n")
+    plot_name = options.save_plots+f"head_distance_{options.metric}.html"
+    prompt_file_name = options.save_plots+"prompts.txt"
+    with open(prompt_file_name, "w") as f:
+        f.write(f"--start={options.start}\n--target={options.target}\n")
     plot_distance_over_steps_plotly(found_d, filename=plot_name, section_labels=found_i, additional_y = found_heads)
 
 
@@ -283,6 +293,8 @@ def plot_distance_over_steps_plotly(y_values, filename="distance_plot.html", sec
         unique_labels = list(dict.fromkeys(section_labels))  # preserves order
         color_map = {str(label): f"hsl({(i * 360 // len(unique_labels)) % 360},70%,60%)"
                      for i, label in enumerate(unique_labels)}
+        print(color_map)
+        print(section_labels)
 
         # Draw segments with color
         for i in range(len(y_values) - 1):
@@ -294,7 +306,7 @@ def plot_distance_over_steps_plotly(y_values, filename="distance_plot.html", sec
                 line=dict(color=color_map[label], width=3),
                 name=label,
                 legendgroup=label,
-                showlegend=True #(i == section_labels.index(label)),  # show legend once per label
+                showlegend=(i == section_labels.index(int(label))),  # show legend once per label
             ))
     else:
         fig.add_trace(go.Scatter(

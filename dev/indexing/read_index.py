@@ -1,6 +1,6 @@
 from sqlitedict import SqliteDict
 import sys
-db = SqliteDict("/scratch/project_462000883/amanda/embedding-extraction/dtp.sqlite")
+db = SqliteDict("/scratch/project_2002026/amanda/from-lumi/embedding-odysseia/jobs/full-docs-02-06-25/filled-indexers/IVFPQ.sqlite")
 
 
 def find_full_text(db, index):
@@ -25,8 +25,9 @@ def find_full_text(db, index):
 #print(len(db))
 
 
-id_to_find = "5c808fedd393e4f586bb67bb3955c024"
-print(find_full_text(db, id_to_find))
+#id_to_find = "5c808fedd393e4f586bb67bb3955c024"
+#print(find_full_text(db, id_to_find))
+print(db[7482145])
 
 """DTP
 "5be7eabe95a0ee2f7653dd0f5f27e724"   #500k does not exist anymore
