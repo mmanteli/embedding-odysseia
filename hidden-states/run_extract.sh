@@ -13,12 +13,13 @@
 
 module purge
 module use /appl/local/csc/modulefiles/
-module load pytorch/2.4
+module load pytorch/2.5
 export PYTHONPATH=/scratch/project_462000883/amanda/embedding-odysseia/pythonuserbase/lib/python3.10/site-packages:$PYTHONPATH
 export HF_HOME=/scratch/project_462000883/hf_cache
 
 register="dtp"
 iter="50k"
-data="/scratch/project_462000883/amanda/register-training-with-megatron/data_by_checkpoints/dtp-50k-51k.jsonl"
-data_name="dtp-50k-51k"
-srun python extract.py --register=$register --iter=$iter --data_path=$data --data_is_tokenized --sample=10 --save="results/${register}-${iter}-w-${data_name}.tsv"
+#data="/scratch/project_462000883/amanda/register-training-with-megatron/data_by_checkpoints/dtp-50k-51k.jsonl"
+data="/scratch/project_462000883/amanda/embedding-odysseia/hidden-states/dev_data/dtp-500.jsonl"
+data_name=$(basename $data)
+srun python extract.py --register=$register --iter=$iter --data_path=$data --sample=10 --save="results/${register}-${iter}-w-${data_name}.pkl"  # --data_is_tokenized 

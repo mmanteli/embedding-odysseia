@@ -1,11 +1,10 @@
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 import torch
 import json
 import ast
-import pandas as pd
 from jsonargparse import ArgumentParser
-import datasets
-from torch.utils.data import DataLoader
+#from torch.utils.data import DataLoader
+import pickle
 
 model_dict = lambda x: {"50k": f"/scratch/project_462000883/amanda/register-training-with-megatron/checkpoints_converted/{x}/iter_0050000",
                         "51k": f"/scratch/project_462000883/amanda/register-training-with-megatron/checkpoints_converted/{x}/iter_0051000",
@@ -14,7 +13,7 @@ model_dict = lambda x: {"50k": f"/scratch/project_462000883/amanda/register-trai
                         }
 
 
-ap = ArgumentParser(prog="test.py")
+ap = ArgumentParser(prog="extract.py")
 ap.add_argument('--model')
 ap.add_argument('--register')
 ap.add_argument('--iter')
@@ -50,6 +49,7 @@ print("Model and tokenizer loaded.", flush=True)
 # load data
 data = []
 with open(options.data_path) as f:
+    print("reading a data", flush=True)
     for line in f:
         data.append(ast.literal_eval(line))
         if options.sample:
@@ -59,6 +59,8 @@ with open(options.data_path) as f:
 #    data = data[:options.sample] # TODO, this is for testing
 
 print("data is read", flush=True)
+print(len(data), flush=True)
+
 # functions for embedding :)
 def tokenize(t):
     """Tokenize a piece of text."""
@@ -72,23 +74,28 @@ def flatten_by_tokens(state):
 
 def extract(model, tokenized, layers):
     """Get hidden states of model for given layers."""
-    tokenized.to(model.device)
+    try:
+        tokenized.to(model.device)
+    except:
+        tokenized = {"input_ids":torch.tensor([tokenized])}
+        tokenized.to(model.device)
     with torch.no_grad():
         output = model(**tokenized, return_dict_in_generate=True, output_hidden_states=True)
     hidden_states = output["hidden_states"]
     del output
-    return_value = [flatten_by_tokens(hidden_states[i]) for i in layers]
+    return_value = [flatten_by_tokens(hidden_states[i].cpu()) for i in layers]
     del hidden_states
     torch.cuda.empty_cache()
     return return_value
 
 
 #results = []
-with open(options.save, 'a') as f:
+with open(options.save, 'wb') as f:
     for t in data:
         print("new iteration", flush=True)
         tokenized = tokenize(t["text"]) if not options.data_is_tokenized else t["text"]
         print("\tNow embedding, flush=True")
+        print(tokenized, flush=True)
         output = extract(model, tokenized, options.layers)
         print("\tEmbedded, saving...", flush=True)
         assert len(options.layers) == len(output)
@@ -99,13 +106,5 @@ with open(options.save, 'a') as f:
             t["detok"] = tokenizer.decode(tokenized)
         #results.append({**t, **embed_results})
         #print(json.dumps({**t, **embed_results}), file=f)
-        pickle.dump({**t, **embed_results}, f)
+        pickle.dump(str(json.dumps({**t, **embed_results})), f)
 
-
-#print("embedding done")
-#df = pd.DataFrame.from_dict(results)
-#print(df)
-#if ".tsv" in options.save:
-#    df.to_csv(options.save,sep="\t")
-#else:
-#    df.to_csv(options.save)
