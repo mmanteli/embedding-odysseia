@@ -20,9 +20,9 @@ torch.cuda.manual_seed_all(20)
 access_token = os.environ["HFKEY"]
 model_path = 'meta-llama/Llama-2-7b-hf' #'gpt2' #"/scratch/project_462000883/amanda/models/llamackpts/llama2-7b-chat-hf"
 num_steps = 50
-user_prompt = "Write this sentence twice. "
-adv_string_init = "! ! ! ! ! ! ! ! !"
-target = "I want strawberry ice cream."  # same number tokens
+user_prompt = "The most important thing to remember when "
+adv_string_init = "! ! !"
+target = "is to have fun and be yourself."  # same number tokens
 #template_name = 'llama-2'
 device = 'cuda:0'
 batch_size = 512
@@ -317,33 +317,36 @@ class Manager:
         input_ids = torch.tensor(toks) #[:self._target_slice.stop])
         return input_ids
 
+    def generate(self, model, tokenizer, input_ids, gen_config=None):
+        if gen_config is None:
+            gen_config = model.generation_config
+            gen_config.max_new_tokens = 32
+
+        if gen_config.max_new_tokens > 50:
+            print('WARNING: max_new_tokens > 32 may cause testing to slow down.')
+            
+        input_ids = input_ids.to(model.device).unsqueeze(0)[:self._adv_slice.stop]
+        attn_masks = torch.ones_like(input_ids)[:self._adv_slice.stop].to(model.device)
+        output_ids = model.generate(input_ids, 
+                                    attention_mask=attn_masks, 
+                                    generation_config=gen_config,
+                                    pad_token_id=tokenizer.pad_token_id)[0]
+
+        return output_ids
+
+    def check_for_attack_success(self, model, tokenizer, input_ids, test_prefixes, gen_config=None):
+        gen_str = tokenizer.decode(self.generate(model, 
+                                            tokenizer, 
+                                            input_ids,
+                                            gen_config=gen_config)).strip()
+        jailbroken = gen_str == test_prefixes[0] #not any([prefix in gen_str for prefix in test_prefixes])
+        return jailbroken
+
 #---------------------------------conversationality-----------------------------------------#
 
 
-def generate(model, tokenizer, input_ids, gen_config=None):
-    if gen_config is None:
-        gen_config = model.generation_config
-        gen_config.max_new_tokens = 32
 
-    if gen_config.max_new_tokens > 50:
-        print('WARNING: max_new_tokens > 32 may cause testing to slow down.')
-        
-    input_ids = input_ids.to(model.device).unsqueeze(0)
-    attn_masks = torch.ones_like(input_ids).to(model.device)
-    output_ids = model.generate(input_ids, 
-                                attention_mask=attn_masks, 
-                                generation_config=gen_config,
-                                pad_token_id=tokenizer.pad_token_id)[0]
 
-    return output_ids
-
-def check_for_attack_success(model, tokenizer, input_ids, test_prefixes, gen_config=None):
-    gen_str = tokenizer.decode(generate(model, 
-                                        tokenizer, 
-                                        input_ids,
-                                        gen_config=gen_config)).strip()
-    jailbroken = gen_str == test_prefixes[0] #not any([prefix in gen_str for prefix in test_prefixes])
-    return jailbroken
 
 
     
@@ -369,7 +372,8 @@ for i in range(num_steps):
     # Step 1. Encode user prompt (behavior + adv suffix) as tokens and return token ids.
     input_ids = suffix_manager.get_input_ids()
     input_ids = input_ids.to(device)
-    print(f'Decoded input is: {suffix_manager.tokenizer.decode(input_ids)}')
+    print(f'Full decoded input ids are: {suffix_manager.tokenizer.decode(input_ids)}')
+    print(f'Initial instruction string is {suffix_manager.tokenizer.decode(input_ids[suffix_manager._instruction_slice])}')
     print(f'Adversarial slice is: {suffix_manager.tokenizer.decode(input_ids[suffix_manager._adv_slice])} ({suffix_manager._adv_slice})')
     print(f'Target slice is: {suffix_manager.tokenizer.decode(input_ids[suffix_manager._target_slice])}')
     print(f'Loss slice is: {suffix_manager.tokenizer.decode(input_ids[suffix_manager._loss_slice])}')
@@ -425,7 +429,7 @@ for i in range(num_steps):
 
         # Update the running adv_suffix with the best candidate
         adv_suffix = best_new_adv_suffix
-        is_success = check_for_attack_success(model, 
+        is_success = suffix_manager.check_for_attack_success(model, 
                                  tokenizer,
                                  suffix_manager.get_input_ids(adv_string=adv_suffix).to(device),
                                  test_prefixes)
@@ -438,7 +442,7 @@ input_ids = suffix_manager.get_input_ids(adv_string=adv_suffix).to(device)
 gen_config = model.generation_config
 gen_config.max_new_tokens = 256
 
-completion = tokenizer.decode((generate(model, 
+completion = tokenizer.decode((suffix_manager.generate(model, 
                                         tokenizer, 
                                         input_ids,
                                         gen_config=gen_config))).strip()
