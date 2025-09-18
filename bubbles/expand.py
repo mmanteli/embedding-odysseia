@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterator, Dict, List, Union
 from jsonargparse import ArgumentParser
+from scipy.spatial import distance as eucdistance
 
 parser = ArgumentParser()
 parser.add_argument("--sent1", default="Jack Morris is a PhD student at Cornell Tech in New York City")
@@ -40,6 +41,7 @@ embedding = get_gtr_embeddings([
        "Jack Morris is a PhD student at Cornell Tech in New York City",
 ], encoder, tokenizer)
 
+
 """
 for alpha in np.arange(0.0, 1.0, 0.1):
   mixed_embedding = torch.lerp(input=embeddings[0], end=embeddings[1], weight=alpha)
@@ -52,10 +54,30 @@ for alpha in np.arange(0.0, 1.0, 0.1):
   print(f'alpha={alpha:.1f}\t', text)
 """
 
+
+def inversion_function(vector_to_be_inverted):
+    #if isinstance(vector_to_be_inverted, list):
+    #    vector_to_be_inverted = torch.stack(vector_to_be_inverted)
+    #print(vector_to_be_inverted.shape)
+    #print(type(vector_to_be_inverted))
+    #print(vector_to_be_inverted.dtype)
+    #return ["placeholder"]
+    return vec2text.invert_embeddings(
+                                        embeddings=vector_to_be_inverted.cuda(),
+                                        num_steps=options.search_iter,
+                                        corrector=corrector
+                                    )
+
+
+
 class Point:
-    def __init__(self, loc:torch.Tensor):
+    def __init__(self, loc:torch.Tensor, idx:int):
         self.loc = loc
         self.frozen = False
+        self.idx = idx
+        assert isinstance(self.loc, torch.Tensor), f"error in point initialisation, {type(loc), type(idx)}"
+        assert isinstance(self.idx, int), f"error in point initialisation {type(loc), type(idx)}"
+
     def freeze(self):
         self.frozen = True
 
@@ -72,15 +94,16 @@ class Point:
         else:
             return False
     
-    def print(self):
-        print(self.loc)
+    def print_point(self):
+        print(self.loc.tolist(), self.frozen)
 
     def invert(self):
-        return vec2text.invert_embeddings(
-                                        embeddings=self.loc.cuda(),
-                                        num_steps=options.search_iter,
-                                        corrector=corrector
-                                    )
+        print(f'Trying to invert point {self.idx}')
+        print(self.loc.dtype)
+        return inversion_function(self.loc)
+
+    def distance(self, reference_point):
+        return eucdistance.euclidean(self.loc, reference_point)
 
 
 class Bubble:
@@ -89,34 +112,42 @@ class Bubble:
             self.origin = origin
         else:
             try:
-                self.origin = Point(origin)
+                self.origin = Point(origin, -1)
             except:
-                print("Someting wrong")
+                raise AttributeError("Give point loc as torch.Tensor")
         self.n_dim = n_dim
         self.n_lines = n_dim
-        self.axes = self.create_lines()
+        self.axes = self.create_axes()
         assert 0<delta<1, "Give delta-value between (0,1)."
         self.delta = delta
         self.points = self.create_initial_points()
         self.initial_inversion = self.origin.invert()
         print(self.initial_inversion)
 
-    def create_lines(self):
-        return torch.concatenate([torch.eye(self.n_dim, dtype=float), -1.*torch.eye(self.n_dim,dtype=float)]) # both directions
+    def create_axes(self):
+        return torch.concatenate([torch.eye(self.n_dim, dtype=torch.float32), -1.*torch.eye(self.n_dim,dtype=torch.float32)]).cuda() # both directions
     def create_initial_points(self):
-        return [Point(self.delta*p) for p in self.axes]
+        return [Point(torch.tensor(self.delta*p + self.origin.loc, dtype=torch.float32), i) for i,p in enumerate(self.axes)]
 
     def expand(self):
         for i, point in enumerate(self.points):
             point.move(self.delta*self.axes[i])
+
+    def get_points_as_matrix(self):
+        return torch.stack([p.loc for p in self.points])
+
     def invert_points(self):
-        return vec2text.invert_embeddings(
-                                        embeddings=self.points.cuda(),
-                                        num_steps=options.search_iter,
-                                        corrector=corrector
-                                    )
+        inversions=[]
+        for p in self.points:
+            inversions.append(p.invert())
+        return inversions
+        
+        #return inversion_function(self.get_points_as_matrix())
+    
     def evaluate_points(self):
         inversions = self.invert_points()
+        print("Inversions:")
+        print(inversions)
         for i,p in self.points:
             if inversions[i] != self.initial_inversion:
                 p.freeze()
