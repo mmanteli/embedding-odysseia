@@ -152,22 +152,21 @@ class Bubble:
             point.move(self.delta*self.axes[i])
 
     def get_points_as_matrix(self):
-        return torch.cat([p.loc for p in self.points if not p.frozen], dim=0)
+        non_frozen_points = [p for p in self.points if not p.frozen]
+        return torch.cat([p.loc for p in non_frozen_points], dim=0), non_frozen_points
 
     def invert_points(self):
-        return inversion_function(self.get_points_as_matrix())
+        embs, ps = self.get_points_as_matrix()
+        return inversion_function(embs), ps
     
     def evaluate_points(self):
-        inversions = self.invert_points()
+        inversions, non_frozen_points = self.invert_points()
         print("Inversions:")
         print(len(inversions), inversions)
-        for i,p in enumerate(self.points):
-            if not p.frozen:
-                print(f'In point {p.idx}')
-                print(f'Index = {i}')
-                if inversions[i] != self.initial_inversion:
-                    print(f'Freezing, because {inversions[i]} != {self.initial_inversion}')
-                    p.freeze()
+        for i,p in enumerate(non_frozen_points):
+            if inversions[i] != self.initial_inversion:
+                print(f'Freezing, because {inversions[i]} != {self.initial_inversion}')
+                p.freeze()
     
     def loop(self):
         while not all([p.is_frozen for p in self.points]):
@@ -183,6 +182,7 @@ class Bubble:
 embedding = get_gtr_embeddings([
        "Jack Morris is a PhD student at Cornell Tech in New York City"],
         encoder, tokenizer)
+
 
 bubble = Bubble(embedding, embedding.shape[1], 4, 0.001)
 bubble.loop()
