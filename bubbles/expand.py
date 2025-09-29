@@ -50,7 +50,10 @@ if options.sentence is None:
         print("reading a jsonl", flush=True)
         d = json.loads(lines[options.file_index])
         embedding = torch.Tensor([d["emb"]]).cuda()
-        options.sentence = d["text"]
+        try:
+            options.sentence = d["text"]
+        except:
+           options.sentence =""
         if not os.path.isfile(options.savepath):
             try:  # try to comeup with a savepath by id
                 sentence_name = d["id"]
