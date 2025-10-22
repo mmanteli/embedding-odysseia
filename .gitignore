@@ -25,3 +25,5 @@ testing
 results
 .venv
 bubbledata
+bubbles/*.txt
+bubbles/*.jsonl
