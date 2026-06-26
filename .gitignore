@@ -27,3 +27,4 @@ results
 bubbledata
 bubbles/*.txt
 bubbles/*.jsonl
+.ipynb_checkpoints
